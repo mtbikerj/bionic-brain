@@ -1,5 +1,5 @@
 import json
-from backend.agents.base import BaseAgent, AgentContext, AgentResult
+from backend.agents.base import BaseAgent, AgentContext, AgentResult, call_ai
 
 _SYSTEM = """You are a knowledge graph assistant. Given a source node and a list of candidate nodes, identify which candidates should be linked to the source and why.
 
@@ -23,9 +23,7 @@ class NodeLinkerAgent(BaseAgent):
     suitable_for = ["*"]
 
     def run(self, ctx: AgentContext) -> AgentResult:
-        from backend.config import ANTHROPIC_API_KEY, AI_MODEL
         from backend.db.connection import get_nodes_collection
-        import anthropic
 
         node = ctx.node
         node_id = node.get("id")
@@ -68,15 +66,7 @@ class NodeLinkerAgent(BaseAgent):
         cand_lines = [f"id={c['id']} | {c.get('label', '?')} ({c.get('type', '?')})" for c in candidates[:25]]
         prompt = f"Source node:\n{source_desc}\n\nCandidate nodes:\n" + "\n".join(cand_lines)
 
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=800,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = response.content[0].text.strip()
-        tokens = response.usage.input_tokens + response.usage.output_tokens
+        text, tokens = call_ai(_SYSTEM, prompt, max_tokens=800)
 
         try:
             if "```" in text:

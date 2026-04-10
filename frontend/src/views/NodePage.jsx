@@ -340,9 +340,9 @@ export default function NodePage() {
                   key={`out-${et.name}`}
                   className="btn btn-ghost btn-sm"
                   onClick={() => setAddingEdge({ edgeType: et, direction: 'out' })}
-                  title={`Add: this ${node.type} ${et.name} →`}
+                  title={`Add outgoing: ${et.name}`}
                 >
-                  + {et.name}
+                  + {formatRelType(et.name)}
                 </button>
               ))}
               {typeDef?.edge_types?.filter((et) => et.inverse).map((et) => (
@@ -350,9 +350,9 @@ export default function NodePage() {
                   key={`in-${et.name}`}
                   className="btn btn-ghost btn-sm"
                   onClick={() => setAddingEdge({ edgeType: et, direction: 'in' })}
-                  title={`Add: other ${et.target_type || 'item'} ${et.name} this`}
+                  title={`Add incoming: ${et.inverse}`}
                 >
-                  + ← {et.inverse}
+                  + {formatRelType(et.inverse)}
                 </button>
               ))}
               {rels.inverse_edge_types?.map((iet) => (
@@ -363,9 +363,9 @@ export default function NodePage() {
                     edgeType: { name: iet.edge_name, target_type: iet.source_type, inverse: iet.inverse_label },
                     direction: 'in',
                   })}
-                  title={`Add: ${iet.source_type} ${iet.edge_name} this`}
+                  title={`Add incoming: ${iet.edge_name}`}
                 >
-                  + ← {iet.inverse_label}
+                  + {formatRelType(iet.inverse_label)}
                 </button>
               ))}
             </div>
@@ -392,13 +392,24 @@ export default function NodePage() {
           <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No relationships yet.</div>
         ) : (
           <div className="node-rels">
-            {allRels.map((r, i) => (
-              <div key={i} className="chip" onClick={() => navigate(`/nodes/${r.otherId}`)}>
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                  {r.direction === 'out' ? '→' : '←'} {r.displayType}
-                </span>
-                <span>{r.otherLabel || r.otherId}</span>
-                {r.otherType && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{r.otherType}</span>}
+            {Object.values(
+              allRels.reduce((acc, r) => {
+                const key = `${r.direction}:${r.displayType}`
+                if (!acc[key]) acc[key] = { displayType: r.displayType, direction: r.direction, items: [] }
+                acc[key].items.push(r)
+                return acc
+              }, {})
+            ).map((group, i) => (
+              <div key={i} className="rel-group">
+                <div className="rel-group-label">{formatRelType(group.displayType)}</div>
+                <div className="rel-group-items">
+                  {group.items.map((r, j) => (
+                    <span key={j} className="chip" onClick={() => navigate(`/nodes/${r.otherId}`)}>
+                      {r.otherLabel || r.otherId}
+                      {r.otherType && <span className="rel-chip-type">({r.otherType.charAt(0) + r.otherType.slice(1).toLowerCase()})</span>}
+                    </span>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -741,8 +752,8 @@ function AddConnectionPanel({ node, edgeType, direction, candidates, onConfirm, 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const label = direction === 'out'
-    ? `${node.label} → ${edgeType.name} → …`
-    : `… → ${edgeType.name} → ${node.label}`
+    ? `${node.label}  ·  ${formatRelType(edgeType.name)}`
+    : `${formatRelType(edgeType.inverse || edgeType.name)}  ·  ${node.label}`
 
   const handleConfirm = async () => {
     if (!selectedId) return
@@ -791,4 +802,14 @@ function extractText(content) {
   if (typeof content === 'string') return content
   if (content.text) return content.text
   return ''
+}
+
+// Convert SCREAMING_SNAKE_CASE edge types to "Title case" for display
+function formatRelType(type) {
+  if (!type) return ''
+  return type
+    .toLowerCase()
+    .split('_')
+    .map((w, i) => i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)
+    .join(' ')
 }

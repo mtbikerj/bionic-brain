@@ -80,6 +80,15 @@ export default function CommandBar({ drawerOpen }) {
     setFocused(false)
   }
 
+  // Close dropdown without resetting the type filter (used when the user picks "filter by type")
+  const dismiss = () => {
+    setQuery('')
+    setResults(null)
+    clearHighlight()
+    inputRef.current?.blur()
+    setFocused(false)
+  }
+
   const openNode = (node) => {
     navigate(`/nodes/${node.id}`)
     clear()
@@ -151,15 +160,22 @@ export default function CommandBar({ drawerOpen }) {
               <span className="cmdbar-inferred-label">
                 Looks like a <strong>{typeLabel(inferredType.name)}</strong>
               </span>
-              {inferredTypeCount > 0 && (
-                <span className="cmdbar-type-count">{inferredTypeCount}</span>
-              )}
               <div className="cmdbar-inferred-actions">
+                {inferredTypeCount > 0 && (
+                  <button
+                    className="cmdbar-filter-btn"
+                    style={{ '--filter-color': typeColor(inferredType.name) }}
+                    onMouseDown={() => { setTypeFilter(inferredType.name); dismiss() }}
+                  >
+                    <span className="cmdbar-pill-dot" style={{ background: typeColor(inferredType.name) }} />
+                    Show all {inferredTypeCount}
+                  </button>
+                )}
                 <button
                   className="cmdbar-add-type"
                   onMouseDown={() => navigate(`/nodes/new?type=${inferredType.name}&label=${encodeURIComponent(query)}`)}
                 >
-                  Add a new {typeLabel(inferredType.name).toLowerCase()}
+                  + New {typeLabel(inferredType.name).toLowerCase()}
                 </button>
                 <button
                   className="cmdbar-search-btn"

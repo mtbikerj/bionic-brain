@@ -5,6 +5,10 @@ import { getGraph, getTypes, createEdge } from '../api'
 import { useAppStore } from '../stores/appStore'
 import './GraphView.css'
 
+function formatSliderDate(ts) {
+  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 const EXCLUDED_EDGE_TYPES = new Set(['BELONGS_TO', 'HAS_AGENT_RUN'])
 const SYSTEM_TYPES        = new Set(['DAY', 'MONTH', 'YEAR'])
 const LABEL_ZOOM_THRESHOLD = 0.55
@@ -35,10 +39,20 @@ export default function GraphView({ drawerOpen }) {
   const linkRef         = useRef(null)       // d3 selection of all link lines
   const nodeDataRef     = useRef([])         // live node array for d3
   const edgePickerCbRef = useRef(null)
+  const navigateRef     = useRef(null)
   const [edgePicker, setEdgePicker] = useState(null)
   const [typeDefs, setTypeDefs]     = useState([])
 
+  // ── Archive / temporal state ──────────────────────────────────────────────
+  const [showArchived, setShowArchived]     = useState(false)
+  const [isTemporalMode, setIsTemporalMode] = useState(false)
+  const [asOf, setAsOf]                     = useState(null)   // null = live
+  const [sliderValue, setSliderValue]       = useState(() => Date.now())
+  const sliderMinRef  = useRef(Date.now() - 365 * 24 * 60 * 60 * 1000) // default: 1yr ago
+  const debounceRef   = useRef(null)
+
   edgePickerCbRef.current = setEdgePicker
+  navigateRef.current     = navigate
 
   // ── Determine focal node from route ──────────────────────────────────────
   const routeMatch = location.pathname.match(/^\/nodes\/([^/]+)$/)
@@ -50,7 +64,13 @@ export default function GraphView({ drawerOpen }) {
   const loadGraph = useCallback(async () => {
     setGraphLoading(true)
     try {
-      const [data, types] = await Promise.all([getGraph({ limit: 500 }), getTypes()])
+      const params = { limit: 500 }
+      if (asOf) {
+        params.as_of = asOf
+      } else if (showArchived) {
+        params.include_archived = true
+      }
+      const [data, types] = await Promise.all([getGraph(params), getTypes()])
       const colors = {}
       types.forEach((t) => { colors[t.name] = t.color })
       setTypeColors(colors)
@@ -58,23 +78,35 @@ export default function GraphView({ drawerOpen }) {
       const nodes = data.nodes || []
       const edges = (data.edges || []).filter((e) => !EXCLUDED_EDGE_TYPES.has(e.type))
       setGraphData(nodes, edges, data.truncated || false)
+
+      // Track earliest created_at for the slider min
+      const minTs = nodes.reduce((m, n) => (n.created_at && n.created_at < m ? n.created_at : m), sliderMinRef.current)
+      sliderMinRef.current = minTs
     } catch (e) {
       console.error('Graph load:', e)
       setGraphLoading(false)
     }
-  }, [setGraphData, setGraphLoading, setTypeColors])
+  }, [setGraphData, setGraphLoading, setTypeColors, asOf, showArchived])
 
   useEffect(() => { loadGraph() }, [loadGraph, graphReloadKey])
 
   // ── Build / rebuild D3 simulation ─────────────────────────────────────────
   useEffect(() => {
-    if (!svgRef.current || graphNodes.length === 0) return
+    if (!svgRef.current) return
 
     const svgEl = svgRef.current
-    const { width, height } = svgEl.getBoundingClientRect()
-
     const svg = d3.select(svgEl)
     svg.selectAll('*').remove()
+
+    if (graphNodes.length === 0) {
+      // Clear stale D3 refs so highlight/filter effects don't touch removed selections
+      nodeGRef.current = null
+      linkRef.current = null
+      nodeDataRef.current = []
+      return
+    }
+
+    const { width, height } = svgEl.getBoundingClientRect()
 
     // ── Arrowhead marker ────────────────────────────────────────────────────
     svg.append('defs').append('marker')
@@ -98,6 +130,8 @@ export default function GraphView({ drawerOpen }) {
         nodeLabel.style('opacity', ev.transform.k >= LABEL_ZOOM_THRESHOLD ? 1 : 0)
       })
     svg.call(zoom).on('dblclick.zoom', null)
+    // Reset any stale zoom state left over from a previous simulation build
+    svg.property('__zoom', d3.zoomIdentity)
     zoomRef.current = { zoom, svg, g, width, height }
 
     // Clone so D3 can mutate positions
@@ -109,13 +143,15 @@ export default function GraphView({ drawerOpen }) {
     nodeDataRef.current = nodes
 
     // ── Force simulation ─────────────────────────────────────────────────────
+    // Strong charge + fixed link distance makes sibling nodes spread to equal
+    // angles around their hub — "flower petals" equidistant from the center.
     const sim = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(edges).id((d) => d.id).distance(50))
-      .force('charge', d3.forceManyBody().strength(-150))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide().radius((d) => nodeRadius(d) + 4))
-      .velocityDecay(0.6)
-      .alphaDecay(0.04)
+      .force('link', d3.forceLink(edges).id((d) => d.id).distance(90).strength(0.8))
+      .force('charge', d3.forceManyBody().strength(-600).distanceMin(20).distanceMax(500))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.04))
+      .force('collide', d3.forceCollide().radius((d) => nodeRadius(d) + 18).strength(0.9))
+      .velocityDecay(0.75)
+      .alphaDecay(0.025)
     simulationRef.current = sim
 
     // ── Links ────────────────────────────────────────────────────────────────
@@ -146,10 +182,12 @@ export default function GraphView({ drawerOpen }) {
       .attr('r', nodeRadius)
       .attr('fill', (d) => {
         if (SYSTEM_TYPES.has(d.type)) return 'rgba(255,255,255,0.08)'
-        return typeColors[d.type] || '#6b7280'
+        const base = typeColors[d.type] || '#6b7280'
+        return d.archived_at ? base + '55' : base
       })
-      .attr('stroke', 'rgba(255,255,255,0.2)')
+      .attr('stroke', (d) => d.archived_at ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.2)')
       .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', (d) => d.archived_at ? '3,2' : null)
 
     // Labels
     const nodeLabel = nodeG.append('text')
@@ -165,7 +203,7 @@ export default function GraphView({ drawerOpen }) {
     nodeG.on('click', (ev, d) => {
       if (ev.shiftKey) return
       ev.stopPropagation()
-      navigate(`/nodes/${d.id}`)
+      navigateRef.current(`/nodes/${d.id}`)
     })
 
     // Double-click → fit view around node
@@ -223,7 +261,7 @@ export default function GraphView({ drawerOpen }) {
     })
 
     return () => { sim.stop(); svg.on('.zoom', null) }
-  }, [graphNodes, graphLinks, typeColors, navigate])
+  }, [graphNodes, graphLinks, typeColors])
 
   // ── Highlight effect: dim non-matching nodes (skipped when typeFilter active) ─
   useEffect(() => {
@@ -331,6 +369,33 @@ export default function GraphView({ drawerOpen }) {
     svg.transition().duration(500).call(zoom.transform, t)
   }, [focusNodeId])
 
+  // ── Temporal slider handlers ──────────────────────────────────────────────
+  const handleSliderChange = (e) => {
+    const val = Number(e.target.value)
+    setSliderValue(val)
+    clearTimeout(debounceRef.current)
+    // If within 30 seconds of now, snap back to live
+    if (val >= Date.now() - 30_000) {
+      setAsOf(null)
+      return
+    }
+    debounceRef.current = setTimeout(() => setAsOf(val), 250)
+  }
+
+  const enterTemporalMode = () => {
+    setIsTemporalMode(true)
+    const now = Date.now()
+    setSliderValue(now)
+    setAsOf(null)
+  }
+
+  const exitTemporalMode = () => {
+    clearTimeout(debounceRef.current)
+    setIsTemporalMode(false)
+    setAsOf(null)
+    setSliderValue(Date.now())
+  }
+
   // ── Edge create ────────────────────────────────────────────────────────────
   const handleEdgeCreate = async (edgeType) => {
     if (!edgePicker) return
@@ -360,8 +425,47 @@ export default function GraphView({ drawerOpen }) {
         <div className="graph-badge graph-truncated">500 node limit — search to filter</div>
       )}
 
+      {/* ── Archive / Temporal toolbar ── */}
+      <div className="graph-toolbar">
+        {isTemporalMode ? (
+          <>
+            <button className="btn btn-ghost btn-sm graph-toolbar-btn" onClick={exitTemporalMode}>
+              Live
+            </button>
+            <span className="graph-toolbar-date">
+              {asOf ? formatSliderDate(asOf) : 'Now'}
+            </span>
+            <input
+              type="range"
+              className="graph-time-slider"
+              min={sliderMinRef.current}
+              max={Date.now()}
+              step={3_600_000}
+              value={sliderValue}
+              onChange={handleSliderChange}
+            />
+          </>
+        ) : (
+          <>
+            <label className="graph-toolbar-check">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+            <button className="btn btn-ghost btn-sm graph-toolbar-btn" onClick={enterTemporalMode}>
+              History
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="graph-hint-bar">
-        Click to open · Shift+drag to link · Scroll to zoom
+        {isTemporalMode
+          ? `Viewing ${asOf ? formatSliderDate(asOf) : 'live'} — drag slider to travel`
+          : 'Click to open · Shift+drag to link · Scroll to zoom'}
       </div>
 
       {edgePicker && (

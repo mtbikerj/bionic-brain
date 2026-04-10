@@ -18,6 +18,8 @@ def _node_dict(node_id: str, metadata: dict) -> dict:
         "label": metadata.get("label", "?"),
         "type": metadata.get("type", "?"),
         "has_body": bool(metadata.get("has_body", 0)),
+        "archived_at": int(metadata.get("archived_at", 0)),
+        "created_at": int(metadata.get("created_at", 0)),
         "status": props.get("status"),
     }
 
@@ -28,6 +30,8 @@ def get_graph(
     depth: int = 2,
     limit: int = 200,
     types: str | None = None,
+    include_archived: bool = False,
+    as_of: int | None = None,
 ):
     depth = max(1, min(depth, 5))
     limit = max(1, min(limit, 200))
@@ -74,6 +78,19 @@ def get_graph(
             reverse=True,
         )[:limit]
         pairs = list(pairs)
+
+    # ── Archive / temporal filter ────────────────────────────────────────────
+    if as_of:
+        pairs = [
+            (nid, meta) for nid, meta in pairs
+            if int(meta.get("created_at", 0)) <= as_of
+            and (
+                int(meta.get("archived_at", 0)) == 0
+                or int(meta.get("archived_at", 0)) > as_of
+            )
+        ]
+    elif not include_archived:
+        pairs = [(nid, meta) for nid, meta in pairs if int(meta.get("archived_at", 0)) == 0]
 
     if type_list:
         pairs = [(nid, meta) for nid, meta in pairs if meta.get("type") in type_list]
@@ -129,7 +146,7 @@ def get_graph(
     with get_db() as conn:
         placeholders = ",".join("?" * len(all_node_ids))
         edge_rows = conn.execute(
-            f"SELECT id, from_id, to_id, type FROM edges "
+            f"SELECT id, from_id, to_id, type, created_at FROM edges "
             f"WHERE from_id IN ({placeholders}) AND to_id IN ({placeholders})",
             all_node_ids + all_node_ids,
         ).fetchall()
@@ -139,6 +156,8 @@ def get_graph(
     seen_edges: set[tuple] = set()
     for row in edge_rows:
         if row["type"] in _SKIP_EDGE_TYPES:
+            continue
+        if as_of and int(row["created_at"] or 0) > as_of:
             continue
         if row["from_id"] in id_set and row["to_id"] in id_set:
             edges.append({"id": row["id"], "source": row["from_id"], "target": row["to_id"], "type": row["type"]})

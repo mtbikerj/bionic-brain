@@ -40,14 +40,29 @@ export default function NodeCreatePanel({ defaultType, defaultLabel, onCreated, 
     return [...seen]
   }, [typeDef])
 
+  // Find edge types from OTHER types that point at selectedType (so inverse pickers show on creation)
+  const inverseEdgeTypes = useMemo(() => {
+    const results = []
+    for (const t of types) {
+      for (const et of (t.edge_types || [])) {
+        if (et.target_type === selectedType && et.inverse) {
+          results.push({ sourceType: t.name, edgeName: et.name, inverseLabel: et.inverse })
+        }
+      }
+    }
+    return results
+  }, [types, selectedType])
+
   useEffect(() => {
     setConnections({})
-    targetTypes.forEach((type) => {
+    const allTypes = [...targetTypes, ...inverseEdgeTypes.map((iet) => iet.sourceType)]
+    const unique = [...new Set(allTypes)]
+    unique.forEach((type) => {
       getNodes({ type, limit: 200 }).then((ns) =>
         setNodesByType((prev) => ({ ...prev, [type]: ns }))
       ).catch(() => {})
     })
-  }, [targetTypes.join(',')])
+  }, [targetTypes.join(','), inverseEdgeTypes.map((iet) => iet.sourceType).join(',')])
 
   const setProp = (key, val) => setProps((p) => ({ ...p, [key]: val }))
   const setConnection = (key, val) => setConnections((c) => ({ ...c, [key]: val }))
@@ -64,10 +79,17 @@ export default function NodeCreatePanel({ defaultType, defaultLabel, onCreated, 
         properties: props,
         is_inbox: isInbox,
       })
-      // Create edges for any connections the user set
+      // Create outgoing edges (from this node to others, e.g. this Company EMPLOYS Person)
       for (const [edgeTypeName, targetId] of Object.entries(connections)) {
-        if (targetId) {
+        if (targetId && !edgeTypeName.startsWith('__inv__')) {
           await createEdge({ from_id: node.id, to_id: targetId, type: edgeTypeName })
+        }
+      }
+      // Create incoming edges (from others to this node, e.g. Company EMPLOYS this Person)
+      for (const [key, sourceId] of Object.entries(connections)) {
+        if (sourceId && key.startsWith('__inv__')) {
+          const edgeName = key.slice(7) // strip '__inv__' prefix
+          await createEdge({ from_id: sourceId, to_id: node.id, type: edgeName })
         }
       }
       triggerGraphReload()
@@ -115,7 +137,7 @@ export default function NodeCreatePanel({ defaultType, defaultLabel, onCreated, 
           <DynamicField key={field.name} field={field} value={props[field.name]} onChange={(v) => setProp(field.name, v)} nodesByType={nodesByType} />
         ))}
 
-        {/* Connections from edge_types */}
+        {/* Connections from edge_types (outgoing from this node) */}
         {typeDef?.edge_types?.filter((et) => et.target_type).map((et) => {
           const displayLabel = et.name.charAt(0).toUpperCase() + et.name.slice(1).toLowerCase().replace(/_/g, ' ')
           const candidates = nodesByType[et.target_type] || []
@@ -123,6 +145,22 @@ export default function NodeCreatePanel({ defaultType, defaultLabel, onCreated, 
             <div key={et.name} className="form-row">
               <label>{displayLabel}</label>
               <select value={connections[et.name] || ''} onChange={(e) => setConnection(et.name, e.target.value)}>
+                <option value="">— none —</option>
+                {candidates.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
+              </select>
+            </div>
+          )
+        })}
+
+        {/* Inverse connections (this node is the target of another type's edge) */}
+        {inverseEdgeTypes.map((iet) => {
+          const key = `__inv__${iet.edgeName}`
+          const displayLabel = iet.inverseLabel.charAt(0).toUpperCase() + iet.inverseLabel.slice(1).replace(/_/g, ' ')
+          const candidates = nodesByType[iet.sourceType] || []
+          return (
+            <div key={key} className="form-row">
+              <label>{displayLabel}</label>
+              <select value={connections[key] || ''} onChange={(e) => setConnection(key, e.target.value)}>
                 <option value="">— none —</option>
                 {candidates.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}
               </select>

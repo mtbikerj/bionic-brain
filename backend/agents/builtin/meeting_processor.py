@@ -1,5 +1,5 @@
 import json
-from backend.agents.base import BaseAgent, AgentContext, AgentResult
+from backend.agents.base import BaseAgent, AgentContext, AgentResult, call_ai
 
 _SYSTEM = """You are a meeting notes processor. Extract structured information from meeting notes.
 
@@ -20,9 +20,6 @@ class MeetingProcessorAgent(BaseAgent):
     suitable_for = ["NOTE"]
 
     def run(self, ctx: AgentContext) -> AgentResult:
-        from backend.config import ANTHROPIC_API_KEY, AI_MODEL
-        import anthropic
-
         content = ctx.body or ctx.node.get("label", "")
         if not content.strip():
             return AgentResult(
@@ -30,15 +27,7 @@ class MeetingProcessorAgent(BaseAgent):
                 error_message="No content found to process. Add notes to the body of this node first.",
             )
 
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=1000,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": f"Meeting notes:\n\n{content[:3000]}"}],
-        )
-        text = response.content[0].text.strip()
-        tokens = response.usage.input_tokens + response.usage.output_tokens
+        text, tokens = call_ai(_SYSTEM, f"Meeting notes:\n\n{content[:3000]}", max_tokens=1000)
 
         try:
             if "```" in text:

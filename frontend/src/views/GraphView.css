@@ -80,6 +80,53 @@
 }
 [data-theme="light"] .graph-hint-bar { background: rgba(245,245,250,0.85); }
 
+/* Archive / temporal toolbar */
+.graph-toolbar {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15,15,17,0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 14px;
+  z-index: 10;
+  white-space: nowrap;
+}
+[data-theme="light"] .graph-toolbar { background: rgba(245,245,250,0.88); }
+
+.graph-toolbar-btn { padding: 2px 8px; font-size: 11px; border-radius: 12px; }
+
+.graph-toolbar-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.graph-toolbar-check input { width: auto; cursor: pointer; }
+
+.graph-toolbar-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 96px;
+  text-align: center;
+}
+
+.graph-time-slider {
+  width: 220px;
+  height: 4px;
+  cursor: pointer;
+  accent-color: #6366f1;
+}
+
 /* Edge picker */
 .edge-picker-options {
   display: flex;

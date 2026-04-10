@@ -91,8 +91,29 @@
 
 .node-rels {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rel-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.rel-group-items {
+  display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.rel-chip-type {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+  font-weight: 400;
 }
 
 .node-body-display {

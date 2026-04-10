@@ -172,6 +172,24 @@
 }
 .cmdbar-add-type:hover { background: rgba(99,102,241,0.2); }
 
+.cmdbar-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--filter-color, var(--accent));
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--filter-color, var(--accent)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--filter-color, var(--accent)) 35%, transparent);
+  transition: background 0.12s, border-color 0.12s;
+}
+.cmdbar-filter-btn:hover {
+  background: color-mix(in srgb, var(--filter-color, var(--accent)) 22%, transparent);
+  border-color: color-mix(in srgb, var(--filter-color, var(--accent)) 55%, transparent);
+}
+
 .cmdbar-search-btn {
   font-size: 12px;
   font-weight: 500;

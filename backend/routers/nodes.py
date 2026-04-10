@@ -9,7 +9,7 @@ from backend.blob.store import read_body, write_body, delete_body
 router = APIRouter(prefix="/nodes", tags=["nodes"])
 
 _BASE_META = {"id", "type", "type_version", "label", "created_at", "updated_at",
-              "created_by", "has_body", "is_inbox", "labels", "properties"}
+              "created_by", "has_body", "is_inbox", "archived_at", "labels", "properties"}
 
 
 def _now() -> int:
@@ -35,6 +35,7 @@ def _meta_to_node(node_id: str, metadata: dict) -> NodeResponse:
         created_by=metadata.get("created_by", "user"),
         has_body=bool(metadata.get("has_body", 0)),
         is_inbox=bool(metadata.get("is_inbox", 0)),
+        archived_at=int(metadata.get("archived_at", 0)),
         properties=props,
         labels=labels,
     )
@@ -67,6 +68,7 @@ def _build_meta(node_id: str, data: dict) -> tuple[str, str, dict]:
         "created_by": str(data.get("created_by", "user")),
         "has_body": int(bool(data.get("has_body", False))),
         "is_inbox": int(bool(data.get("is_inbox", False))),
+        "archived_at": int(data.get("archived_at", 0)),
         "labels": labels_str,
         "properties": props_str,
     }
@@ -109,7 +111,13 @@ def create_node(body: NodeCreate):
 
 
 @router.get("", response_model=list[NodeResponse])
-def list_nodes(type: str | None = None, is_inbox: bool | None = None, limit: int = 100, offset: int = 0):
+def list_nodes(
+    type: str | None = None,
+    is_inbox: bool | None = None,
+    include_archived: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+):
     col = get_nodes_collection()
 
     where_parts = []
@@ -130,6 +138,8 @@ def list_nodes(type: str | None = None, is_inbox: bool | None = None, limit: int
         key=lambda x: x[1].get("created_at", 0),
         reverse=True,
     )
+    if not include_archived:
+        pairs = [(nid, meta) for nid, meta in pairs if int(meta.get("archived_at", 0)) == 0]
     pairs = list(pairs)[offset: offset + limit]
     return [_meta_to_node(nid, meta) for nid, meta in pairs]
 
@@ -185,6 +195,27 @@ def update_node(node_id: str, body: NodeUpdate):
         existing.update(body.properties)
         meta["properties"] = json.dumps(existing)
 
+        # Auto-archive / auto-unarchive based on type's archive_when rule
+        node_type = meta.get("type", "")
+        with get_db() as conn:
+            aw_row = conn.execute(
+                "SELECT archive_when FROM type_definitions WHERE name=?", (node_type,)
+            ).fetchone()
+        if aw_row and aw_row["archive_when"]:
+            try:
+                aw = json.loads(aw_row["archive_when"])
+                trigger_field = aw.get("field")
+                trigger_values = [str(v) for v in aw.get("values", [])]
+                current_val = str(existing.get(trigger_field, ""))
+                if trigger_field and current_val in trigger_values:
+                    if not int(meta.get("archived_at", 0)):
+                        meta["archived_at"] = _now()
+                else:
+                    if int(meta.get("archived_at", 0)):
+                        meta["archived_at"] = 0
+            except Exception:
+                pass
+
     col.update(ids=[node_id], documents=[meta["label"]], metadatas=[meta])
     return _meta_to_node(node_id, meta)
 
@@ -199,6 +230,34 @@ def delete_node(node_id: str):
     with get_db() as conn:
         conn.execute("DELETE FROM edges WHERE from_id=? OR to_id=?", (node_id, node_id))
     delete_body(node_id)
+
+
+# ── Archive endpoints ─────────────────────────────────────────────────────────
+
+@router.post("/{node_id}/archive", response_model=NodeResponse)
+def archive_node(node_id: str):
+    col = get_nodes_collection()
+    result = col.get(ids=[node_id], include=["metadatas"])
+    if not result["ids"]:
+        raise HTTPException(status_code=404, detail="Node not found")
+    meta = dict(result["metadatas"][0])
+    meta["archived_at"] = _now()
+    meta["updated_at"] = meta["archived_at"]
+    col.update(ids=[node_id], metadatas=[meta])
+    return _meta_to_node(node_id, meta)
+
+
+@router.post("/{node_id}/unarchive", response_model=NodeResponse)
+def unarchive_node(node_id: str):
+    col = get_nodes_collection()
+    result = col.get(ids=[node_id], include=["metadatas"])
+    if not result["ids"]:
+        raise HTTPException(status_code=404, detail="Node not found")
+    meta = dict(result["metadatas"][0])
+    meta["archived_at"] = 0
+    meta["updated_at"] = _now()
+    col.update(ids=[node_id], metadatas=[meta])
+    return _meta_to_node(node_id, meta)
 
 
 # ── Body endpoints ────────────────────────────────────────────────────────────

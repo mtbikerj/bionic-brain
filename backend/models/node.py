@@ -29,5 +29,6 @@ class NodeResponse(BaseModel):
     created_by: str
     has_body: bool
     is_inbox: bool
+    archived_at: Optional[int] = 0
     properties: dict[str, Any] = Field(default_factory=dict)
     labels: list[str] = Field(default_factory=list)

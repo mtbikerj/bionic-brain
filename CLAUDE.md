@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Bionic Brain is a local-first personal knowledge graph OS. Users capture nodes (notes, tasks, people, etc.), connect them via typed edges, and query/explore the resulting graph. AI (Claude) routes tasks, suggests types, and runs agents. The design document at `DESIGN.md` is the authoritative spec — read it before making architectural decisions.
+Bionic Brain is a local-first personal knowledge graph OS. Users capture nodes (notes, tasks, people, etc.), connect them via typed edges, and query/explore the resulting graph. AI (Claude) routes tasks, suggests types, and runs agents.
 
 ## Commands
 
@@ -53,31 +53,37 @@ SQLite   (embedded, data/graph.db)  — edges + type definitions
 ```
 
 ### Backend (`backend/`)
-- `main.py` — FastAPI app, CORS, static file serving, router registration; calls `init_db()` on startup
+- `main.py` — FastAPI app, CORS, static file serving, router registration; calls `init_db()` on startup; serves built frontend from `frontend/dist` if present
 - `config.py` — All config read from `.env` via python-dotenv
 - `routers/` — One file per domain: `nodes`, `edges`, `types`, `search`, `settings`, `graph`, `ai`, `backup`, `agents`
 - `models/` — Pydantic request/response models
-- `db/` — `connection.py` (ChromaDB + SQLite clients, `init_db()`), `seed.py` (built-in types)
+- `db/` — `connection.py` (ChromaDB + SQLite clients, `init_db()`), `seed.py` (built-in node types and edge types)
 - `agents/` — Tier 1 (built-in Python), Tier 2 (Claude Code skills), Tier 3 (user-defined)
 - `blob/` — Async read/write for rich text bodies stored as TipTap JSON
 
 ### Frontend (`frontend/src/`)
-- `App.jsx` — React Router 7 route definitions
-- `views/` — Page components: Home, Inbox, Today, Search, NodeDetail, TypeList
-- `components/` — Reusable UI components
+- `App.jsx` — React Router routes; full-screen graph as persistent backdrop with floating command bar and right-side drawer for detail views
+- `views/` — Page components: `GraphView`, `NodePage`, `InboxView`, `TodayView`, `TypeRegistryView`, `TypeCreateView`, `TypeListView`, `AgentsView`, `SettingsView`
+- `components/` — Reusable UI; `CommandBar` is the primary capture/navigation entry point
 - `stores/` — Zustand stores; central `nodeStore` holds node cache and CRUD methods
 - `api/` — Thin fetch wrappers for each backend endpoint
 
-### Data Model
-Every node has: `id` (UUID), `type`, `label`, `created_at`, `updated_at`, `created_by`, `has_body`, `is_inbox`.
+**Routes:** `/` (graph), `/nodes/:id` (node detail), `/inbox`, `/today`, `/types`, `/types/new`, `/types/:name`, `/agents`, `/settings`
 
-Built-in system types: `YEAR`, `MONTH`, `DAY`, `PERSON`, `NOTE`, `TASK`, `FILE`, `URL`, `LOCATION`, `AGENT_RUN`, `ROUTING_RULE`, `SCHEMA_VERSION`, `INBOX_ITEM`.
+**Keyboard shortcuts:** Ctrl/Cmd+K (command bar), Ctrl/Cmd+N (new node), Ctrl/Cmd+I (inbox), Ctrl/Cmd+G (graph home), Ctrl/Cmd+, (settings), Esc (close drawer)
+
+### Data Model
+Every node has: `id` (UUID), `type`, `type_version` (int), `label`, `properties` (dict of custom fields), `labels` (list of string tags), `created_at`, `updated_at`, `created_by`, `has_body`, `is_inbox`, `archived_at`.
+
+Built-in system types: `YEAR`, `MONTH`, `DAY`, `DATETIME`, `PERSON`, `NOTE`, `TASK`, `FILE`, `URL`, `LOCATION`, `AGENT_RUN`, `ROUTING_RULE`, `SCHEMA_VERSION`, `INBOX_ITEM`, `SAVED_SEARCH`.
 
 Every node is auto-linked to a `DAY` node on creation; `DAY → MONTH → YEAR` via `BELONGS_TO` edges — this is how temporal queries work.
 
 Rich text bodies live on disk at `/data/blobs/{node_id[0:2]}/{node_id}/body.json` (TipTap/ProseMirror JSON), not in ChromaDB.
 
 Edges carry optional properties: `role`, `weight`, `note`. Any node can link to any other with any edge type — the model is advised, not enforced by the DB.
+
+Node archiving: nodes are soft-deleted by setting `archived_at` to a timestamp. Types can define `archive_when` rules (e.g., TASK archives when `status` is `"done"` or `"done_silent"`).
 
 ### Type System
 User-defined types extend built-in types via `EXTENDS` edges (single-level inheritance). Field types: `short_text`, `long_text`, `number`, `currency`, `date`, `boolean`, `choice_single`, `choice_multi`, `relationship`, `file`, `url`, `computed`.
@@ -91,11 +97,16 @@ User-defined types extend built-in types via `EXTENDS` edges (single-level inher
 
 Copy `.env.example` → `.env` before first run. Key settings:
 - `ANTHROPIC_API_KEY` — required for AI features
-- `DATA_DIR` — root for blobs, files, ChromaDB (`data/chroma/`), and SQLite (`data/graph.db`)
-- `CHROMA_DIR` — override ChromaDB path (default: `DATA_DIR/chroma`)
+- `AI_MODEL` — Claude model to use (default: `claude-opus-4-6`)
+- `DATA_DIR` — root for all local data
+- `BLOB_DIR` — blob storage path (default: `DATA_DIR/blobs`)
+- `FILES_DIR` — uploaded file storage (default: `DATA_DIR/files`)
+- `CHROMA_DIR` — ChromaDB path (default: `DATA_DIR/chroma`)
+- `CLAUDE_CODE_ENABLED` — enable Tier 2 Claude Code skill agents
 
 ### ChromaDB metadata rules
 - Metadata values must be `str | int | float | bool` — no lists or dicts
-- Node extra properties go into a `properties` JSON string field in metadata
+- Node extra properties stored as a `properties` JSON string field in metadata
+- Node labels (tags) stored as a `labels` JSON string field in metadata
 - `has_body` and `is_inbox` stored as `int` (0/1), converted to `bool` in responses
 - Temporal node IDs are deterministic: `year-2026`, `month-2026-4`, `day-2026-04-08` — enables upsert without lookup

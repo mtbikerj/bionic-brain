@@ -1,4 +1,4 @@
-from backend.agents.base import BaseAgent, AgentContext, AgentResult
+from backend.agents.base import BaseAgent, AgentContext, AgentResult, call_ai
 
 _SYSTEM = """You are a knowledge graph assistant. Summarize the provided node and its context.
 
@@ -37,16 +37,5 @@ class SummarizerAgent(BaseAgent):
     suitable_for = ["NOTE", "TASK", "INBOX_ITEM", "FILE", "URL"]
 
     def run(self, ctx: AgentContext) -> AgentResult:
-        from backend.config import ANTHROPIC_API_KEY, AI_MODEL
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=600,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": _build_prompt(ctx)}],
-        )
-        summary = response.content[0].text.strip()
-        tokens = response.usage.input_tokens + response.usage.output_tokens
+        summary, tokens = call_ai(_SYSTEM, _build_prompt(ctx), max_tokens=600)
         return AgentResult(status="complete", output_summary=summary, tokens_used=tokens)

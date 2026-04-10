@@ -74,6 +74,7 @@ BUILT_IN_TYPES = [
     {
         "name": "TASK",
         "is_builtin": True,
+        "archive_when": {"field": "status", "values": ["done", "done_silent"]},
         "fields": [
             {"name": "title", "type": "short_text", "required": True},
             {
@@ -228,18 +229,19 @@ def seed():
 
     with get_db() as conn:
         for t in BUILT_IN_TYPES:
+            archive_when = json.dumps(t["archive_when"]) if t.get("archive_when") else None
             conn.execute(
                 """
                 INSERT OR IGNORE INTO type_definitions
-                    (name, is_builtin, fields, edge_types, color, icon, version, created_at)
-                VALUES (?, 1, ?, '[]', ?, ?, 1, ?)
+                    (name, is_builtin, fields, edge_types, color, icon, version, created_at, archive_when)
+                VALUES (?, 1, ?, '[]', ?, ?, 1, ?, ?)
                 """,
-                (t["name"], json.dumps(t["fields"]), t["color"], t["icon"], now),
+                (t["name"], json.dumps(t["fields"]), t["color"], t["icon"], now, archive_when),
             )
             # Update mutable fields on re-run
             conn.execute(
-                "UPDATE type_definitions SET color=?, icon=?, fields=? WHERE name=? AND is_builtin=1",
-                (t["color"], t["icon"], json.dumps(t["fields"]), t["name"]),
+                "UPDATE type_definitions SET color=?, icon=?, fields=?, archive_when=? WHERE name=? AND is_builtin=1",
+                (t["color"], t["icon"], json.dumps(t["fields"]), archive_when, t["name"]),
             )
 
         for et in BUILT_IN_EDGE_TYPES:

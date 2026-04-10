@@ -31,6 +31,8 @@ export const deleteNode = (id) => req('DELETE', `/nodes/${id}`)
 export const getNodeBody = (id) => req('GET', `/nodes/${id}/body`)
 export const setNodeBody = (id, content) => req('PUT', `/nodes/${id}/body`, { content })
 export const getNodeRelationships = (id) => req('GET', `/nodes/${id}/relationships`)
+export const archiveNode = (id) => req('POST', `/nodes/${id}/archive`)
+export const unarchiveNode = (id) => req('POST', `/nodes/${id}/unarchive`)
 
 // Edges
 export const createEdge = (data) => req('POST', '/edges', data)

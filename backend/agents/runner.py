@@ -450,8 +450,7 @@ def get_active_tasks() -> list[dict]:
 
 
 def analyze_routing(task_id: str) -> dict:
-    from backend.config import ANTHROPIC_API_KEY, AI_MODEL
-    import anthropic
+    from backend.agents.base import call_ai
 
     ctx = _load_context(task_id, run_id="analysis")
     n = ctx.node
@@ -499,14 +498,11 @@ def analyze_routing(task_id: str) -> dict:
     )
 
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
+        text, _ = call_ai(
+            "You are a task routing assistant. Respond with valid JSON only, no markdown.",
+            prompt,
             max_tokens=200,
-            system="You are a task routing assistant. Respond with valid JSON only, no markdown.",
-            messages=[{"role": "user", "content": prompt}],
         )
-        text = response.content[0].text.strip()
         if "```" in text:
             text = text.split("```")[1].split("```")[0].strip()
             if text.startswith("json"):

@@ -1,6 +1,8 @@
 """
 DB layer: ChromaDB (nodes, semantic search) + SQLite (edges, type definitions).
 """
+from __future__ import annotations
+
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -81,5 +83,12 @@ def init_db():
                 created_at  INTEGER NOT NULL
             );
         """)
+    # Migration: add archive_when column to type_definitions if it doesn't exist yet
+    with get_db() as conn:
+        try:
+            conn.execute("ALTER TABLE type_definitions ADD COLUMN archive_when TEXT")
+        except Exception:
+            pass  # column already exists
+
     # Ensure ChromaDB collection exists
     get_nodes_collection()

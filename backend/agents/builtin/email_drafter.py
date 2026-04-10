@@ -1,4 +1,4 @@
-from backend.agents.base import BaseAgent, AgentContext, AgentResult
+from backend.agents.base import BaseAgent, AgentContext, AgentResult, call_ai
 
 _SYSTEM = """You are a professional email drafting assistant. Draft a clear, professional email based on the provided context.
 
@@ -30,20 +30,5 @@ class EmailDrafterAgent(BaseAgent):
     suitable_for = ["TASK", "NOTE"]
 
     def run(self, ctx: AgentContext) -> AgentResult:
-        from backend.config import ANTHROPIC_API_KEY, AI_MODEL
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=800,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": _build_prompt(ctx)}],
-        )
-        draft = response.content[0].text.strip()
-        tokens = response.usage.input_tokens + response.usage.output_tokens
-        return AgentResult(
-            status="needs_review",
-            output_summary=draft,
-            tokens_used=tokens,
-        )
+        draft, tokens = call_ai(_SYSTEM, _build_prompt(ctx), max_tokens=800)
+        return AgentResult(status="needs_review", output_summary=draft, tokens_used=tokens)
