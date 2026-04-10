@@ -1,0 +1,249 @@
+/* ── Layout ── */
+.type-create-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Chat section ── */
+.type-create-chat {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+}
+
+.type-create-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.type-create-header h2 { font-size: 16px; font-weight: 600; }
+
+.chat-messages {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.chat-msg-user {
+  flex-direction: row-reverse;
+}
+
+.chat-avatar {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.chat-msg-assistant .chat-bubble {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px 12px 12px 12px;
+}
+
+.chat-msg-user .chat-bubble {
+  background: var(--accent, #6366f1);
+  color: white;
+  border-radius: 12px 2px 12px 12px;
+}
+
+.chat-thinking {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.chat-thinking .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: bounce 1.2s infinite;
+}
+.chat-thinking .dot:nth-child(2) { animation-delay: 0.2s; }
+.chat-thinking .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-input-row input {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* ── Suggestions section ── */
+.type-suggestions-section {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suggestions-bar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Suggestion card ── */
+.sugg-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.sugg-card-done {
+  border-color: #22c55e;
+  opacity: 0.75;
+}
+
+.sugg-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sugg-card-row:hover { background: color-mix(in srgb, var(--surface2) 60%, var(--surface3, var(--surface)) 40%); }
+
+.sugg-card-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sugg-card-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sugg-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sugg-card-created-badge {
+  font-size: 11px;
+  color: #22c55e;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sugg-card-chevron {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.sugg-card-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.sugg-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+/* ── Field rows (reused) ── */
+.suggestion-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.suggestion-field-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  padding: 5px 7px;
+  flex-wrap: wrap;
+}
+
+.sf-name { width: 120px; font-size: 12px; padding: 3px 5px; }
+.sf-type { width: 100px; font-size: 12px; padding: 3px 5px; }
+.sf-options { width: 100%; font-size: 12px; padding: 3px 5px; margin-top: 3px; }
+.sf-req {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sf-remove { padding: 2px 5px; flex-shrink: 0; }
+
+/* ── Connections ── */
+.sugg-connections {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sugg-connections-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}

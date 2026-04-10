@@ -1,0 +1,32 @@
+.node-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+.node-card:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.node-card-icon { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
+.node-card-body { flex: 1; min-width: 0; }
+.node-card-label {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.node-card-meta {
+  display: flex; align-items: center; gap: 8px; margin-top: 3px;
+}
+.node-type-badge {
+  font-size: 11px; color: var(--text-muted);
+  background: var(--surface2); border-radius: 3px;
+  padding: 1px 5px;
+}
+.node-status { font-size: 11px; }
+.node-has-body { font-size: 12px; opacity: 0.5; }

@@ -1,0 +1,74 @@
+/* ── Shell layout ────────────────────────────────────────────────────────── */
+.app-shell {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Graph fills everything behind the rails/bars/drawer */
+.graph-layer {
+  position: absolute;
+  inset: 0;
+  left: var(--rail-width);
+}
+
+/* ── Right drawer ────────────────────────────────────────────────────────── */
+.right-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--drawer-width);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: -8px 0 40px rgba(0,0,0,0.3);
+}
+.right-drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+.drawer-close-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.drawer-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 48px; /* clear the close button */
+}
+
+/* Views inside the drawer: disable their internal scroll containers,
+   let the .drawer-scroll wrapper handle scrolling instead */
+.drawer-scroll .view {
+  height: auto;
+  overflow: visible;
+}
+.drawer-scroll .view-content {
+  overflow-y: visible;
+  flex: none;
+}
+.drawer-scroll .node-page { padding-bottom: 40px; }

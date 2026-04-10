@@ -1,0 +1,326 @@
+.cmdbar-wrap {
+  position: fixed;
+  top: 14px;
+  left: calc(var(--rail-width) + 14px);
+  right: 24px;
+  z-index: 200;
+  transition: right 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cmdbar-wrap.drawer-open {
+  right: calc(var(--drawer-width) + 14px);
+}
+
+/* Main bar */
+.cmdbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(26, 26, 31, 0.82);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cmdbar.focused {
+  border-color: var(--accent);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 2px rgba(99,102,241,0.2);
+}
+
+[data-theme="light"] .cmdbar {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.cmdbar-search-icon {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cmdbar-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 14px;
+  padding: 0;
+  min-width: 0;
+}
+.cmdbar-input::placeholder { color: var(--text-muted); }
+
+.cmdbar-clear {
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+.cmdbar-clear:hover { color: var(--text); }
+
+.cmdbar-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+/* Type filter pills (shown when idle) */
+.cmdbar-type-pills {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.cmdbar-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 6px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.cmdbar-type-pill:hover {
+  border-color: var(--pill-color, var(--accent));
+  color: var(--text);
+}
+.cmdbar-type-pill.active {
+  background: color-mix(in srgb, var(--pill-color, var(--accent)) 18%, transparent);
+  border-color: var(--pill-color, var(--accent));
+  color: var(--text);
+}
+
+.cmdbar-pill-close {
+  font-size: 9px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.cmdbar-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cmdbar-pill-count {
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* Dropdown */
+.cmdbar-dropdown {
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+/* State B: inferred type row */
+.cmdbar-inferred-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.cmdbar-type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmdbar-inferred-label { flex: 1; min-width: 0; }
+.cmdbar-inferred-label strong { color: var(--text); font-weight: 600; }
+.cmdbar-type-count {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cmdbar-inferred-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.cmdbar-add-type {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(99,102,241,0.1);
+  transition: background 0.12s;
+}
+.cmdbar-add-type:hover { background: rgba(99,102,241,0.2); }
+
+.cmdbar-search-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  transition: color 0.12s, background 0.12s;
+}
+.cmdbar-search-btn:hover { color: var(--text); background: var(--surface3, var(--surface2)); }
+
+/* State C: "what is it?" */
+.cmdbar-unknown-section {
+  padding: 12px 14px;
+}
+.cmdbar-unknown-header {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.cmdbar-unknown-header em { color: var(--text); font-style: normal; font-weight: 500; }
+
+.cmdbar-what-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cmdbar-what-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 7px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.cmdbar-what-chip:hover {
+  border-color: var(--chip-color, var(--accent));
+  color: var(--text);
+  background: color-mix(in srgb, var(--chip-color, var(--accent)) 8%, transparent);
+}
+
+.cmdbar-unknown-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.cmdbar-newtype-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.25);
+  transition: background 0.12s, border-color 0.12s;
+}
+.cmdbar-newtype-btn:hover {
+  background: rgba(99,102,241,0.16);
+  border-color: rgba(99,102,241,0.45);
+}
+
+.cmdbar-inbox-btn {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  transition: color 0.12s;
+}
+.cmdbar-inbox-btn:hover { color: var(--text); }
+
+.cmdbar-results { padding: 6px; }
+
+.cmdbar-result {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  transition: background 0.1s;
+}
+.cmdbar-result:hover { background: var(--surface2); }
+
+.cmdbar-result-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cmdbar-result-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmdbar-result-type {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cmdbar-empty {
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.cmdbar-more {
+  padding: 6px 12px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Create row */
+.cmdbar-create-row {
+  border-top: 1px solid var(--border);
+  padding: 8px;
+}
+.cmdbar-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  background: rgba(99,102,241,0.06);
+  border: 1px dashed rgba(99,102,241,0.3);
+  transition: background 0.12s, border-color 0.12s;
+  text-align: left;
+}
+.cmdbar-create-btn:hover {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.5);
+}
+.cmdbar-create-btn em { color: var(--text); font-style: normal; }
