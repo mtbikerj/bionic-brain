@@ -1,0 +1,16 @@
+.env
+data/
+venv/
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+node_modules/
+frontend/dist/
+.backend.pid
+.frontend.pid
+*.egg-info/
+dist/
+build/
+.DS_Store
