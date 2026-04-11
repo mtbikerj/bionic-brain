@@ -11,7 +11,7 @@ const NAV = [
   { to: '/inbox',   icon: '📥', label: 'Inbox'   },
   { to: '/today',   icon: '📅', label: 'Today'   },
   { to: '/agents',  icon: '🤖', label: 'Agents'  },
-  { to: '/types',   icon: '⬡',  label: 'Categories' },
+  { to: '/types',   icon: '📐', label: 'Models' },
 ]
 
 export default function IconRail() {
