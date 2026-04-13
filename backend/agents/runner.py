@@ -1,9 +1,12 @@
 """Agent execution orchestrator."""
 import json
+import logging
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from backend.agents.base import AgentContext, AgentResult, BaseAgent
 from backend.agents.builtin import (
@@ -69,7 +72,8 @@ def _load_custom_agents_from_db() -> list[dict]:
         ):
             try:
                 props = json.loads(meta.get("properties", "{}"))
-            except Exception:
+            except json.JSONDecodeError:
+                logger.warning("Corrupt properties JSON for custom agent node %s", nid)
                 props = {}
             agents.append({
                 "name": props.get("name"),
@@ -82,7 +86,8 @@ def _load_custom_agents_from_db() -> list[dict]:
                 "source": "custom",
             })
         return agents
-    except Exception:
+    except Exception as e:
+        logger.error("Failed to load custom agents from DB: %s", e)
         return []
 
 
@@ -179,7 +184,8 @@ def _meta_to_flat(node_id: str, meta: dict) -> dict:
     """Merge ChromaDB metadata + properties JSON into a flat node dict."""
     try:
         props = json.loads(meta.get("properties", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON in _meta_to_flat for node %s", node_id)
         props = {}
     return {
         "id": node_id,
@@ -204,7 +210,8 @@ def _update_node_props(node_id: str, prop_updates: dict, meta_updates: dict | No
     meta = dict(res["metadatas"][0])
     try:
         props = json.loads(meta.get("properties", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON in _update_node_props for node %s", node_id)
         props = {}
     props.update(prop_updates)
     meta["properties"] = json.dumps(props)
@@ -338,11 +345,12 @@ def _run_to_dict(run_id: str) -> dict:
     props = {}
     try:
         props = json.loads(res["metadatas"][0].get("properties", "{}"))
-    except Exception:
-        pass
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON in _run_to_dict for run %s", run_id)
     try:
         output_json = json.loads(props.get("output_json", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt output_json for run %s", run_id)
         output_json = {}
     return {
         "run_id": run_id,
@@ -362,34 +370,60 @@ def _run_to_dict(run_id: str) -> dict:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def execute_agent(task_id: str, agent_name: str, user_reply: Optional[str] = None) -> dict:
+def _resolve_agent(agent_name: str) -> BaseAgent:
+    """Resolve an agent by name. Raises ValueError if not found."""
     if agent_name.startswith("cc:") and CLAUDE_CODE_ENABLED:
         from backend.agents.user_defined.skill_agent import SkillFileAgent
         stem = agent_name[3:]
         skill_path = str(Path(CLAUDE_CODE_SKILLS_PATH) / f"{stem}.md")
-        agent: BaseAgent = SkillFileAgent(
+        return SkillFileAgent(
             skill_path=skill_path,
             name=agent_name,
             description=stem.replace("_", " ").title(),
         )
-    else:
-        agent = _AGENTS.get(agent_name)
-        if not agent:
-            raise ValueError(f"Unknown agent: {agent_name}")
+    agent = _AGENTS.get(agent_name)
+    if not agent:
+        raise ValueError(f"Unknown agent: {agent_name}")
+    return agent
 
-    ctx = _load_context(task_id, run_id="preview", extra={"user_reply": user_reply} if user_reply else {})
-    estimate = agent.estimate_tokens(ctx)
 
-    run_id = _create_run_node(task_id, agent_name, estimate)
-    ctx.run_id = run_id
+def start_agent(task_id: str, agent_name: str) -> str:
+    """
+    Validate the agent, create the AGENT_RUN node, and return its ID immediately.
+    The caller must schedule execute_agent_bg() as a background task.
+    """
+    _resolve_agent(agent_name)  # raises ValueError early if agent is unknown
+    return _create_run_node(task_id, agent_name, token_estimate=0)
 
+
+def execute_agent_bg(
+    task_id: str,
+    agent_name: str,
+    run_id: str,
+    user_reply: Optional[str] = None,
+) -> None:
+    """
+    Background task: load context, run agent, finalize run node.
+    Never raises — all errors are written to the run node as status=failed.
+    """
     try:
-        result = agent.run(ctx)
+        agent = _resolve_agent(agent_name)
+        ctx = _load_context(
+            task_id,
+            run_id=run_id,
+            extra={"user_reply": user_reply} if user_reply else {},
+        )
+        estimate = agent.estimate_tokens(ctx)
+        _update_node_props(run_id, {"token_cost_estimate": estimate})
+        try:
+            result = agent.run(ctx)
+        except Exception as e:
+            logger.error("Agent %s failed for task %s run %s: %s", agent_name, task_id, run_id, e)
+            result = AgentResult(status="failed", error_message=str(e))
     except Exception as e:
+        logger.error("execute_agent_bg setup failed for run %s: %s", run_id, e)
         result = AgentResult(status="failed", error_message=str(e))
-
     _finish_run(run_id, task_id, result)
-    return _run_to_dict(run_id)
 
 
 def get_latest_run(task_id: str) -> Optional[dict]:
@@ -413,7 +447,8 @@ def get_latest_run(task_id: str) -> Optional[dict]:
         try:
             props = json.loads(meta.get("properties", "{}"))
             started = props.get("started_at", 0) or 0
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt properties JSON while finding latest run for task %s", task_id)
             started = 0
         if started > best_started:
             best_started = started
@@ -435,7 +470,8 @@ def get_active_tasks() -> list[dict]:
             continue
         try:
             props = json.loads(meta.get("properties", "{}"))
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt properties JSON for node %s in get_active_tasks", nid)
             props = {}
         if props.get("status") in _ACTIVE_STATUSES:
             tasks.append({
@@ -465,7 +501,8 @@ def analyze_routing(task_id: str) -> dict:
     ):
         try:
             rule = json.loads(meta.get("properties", "{}"))
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt properties JSON for routing rule %s", nid)
             rule = {}
         pattern = rule.get("pattern_description", "").lower()
         task_label = n.get("label", "").lower()

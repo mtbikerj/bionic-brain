@@ -4,6 +4,7 @@ Run once on first launch; safe to re-run at any time.
 """
 import json
 import os
+import sqlite3
 import sys
 import time
 

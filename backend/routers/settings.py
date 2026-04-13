@@ -65,12 +65,10 @@ def _write_env(data: dict[str, str]):
 @router.get("")
 def get_settings():
     env = _read_env()
-    # Mask API key
-    masked = {**env}
-    if "ANTHROPIC_API_KEY" in masked and masked["ANTHROPIC_API_KEY"]:
-        key = masked["ANTHROPIC_API_KEY"]
-        masked["ANTHROPIC_API_KEY"] = key[:8] + "..." + key[-4:] if len(key) > 12 else "****"
-    return masked
+    # Never return the API key value over HTTP — only expose whether it's configured.
+    result = {k: v for k, v in env.items() if k != "ANTHROPIC_API_KEY"}
+    result["ANTHROPIC_API_KEY_SET"] = bool(env.get("ANTHROPIC_API_KEY", "").strip())
+    return result
 
 
 @router.put("")

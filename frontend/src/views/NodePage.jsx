@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { getNode, getNodeBody, setNodeBody, getNodeRelationships, deleteNode, updateNode, getType,
          routeTask, runAgent, getLatestRun, getAgents, getTypes, getNodes, createEdge } from '../api'
@@ -40,8 +40,35 @@ export default function NodePage() {
   const [routing, setRouting] = useState(null)     // { agent, confidence, reason }
   const [agentLoading, setAgentLoading] = useState(false)
   const [availableAgents, setAvailableAgents] = useState([])
+  const pollRef = useRef(null)
 
   const { setActiveNodeId } = useAppStore()
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const startPolling = useCallback((nodeId) => {
+    if (pollRef.current) return // already polling
+    pollRef.current = setInterval(async () => {
+      try {
+        const run = await getLatestRun(nodeId)
+        if (run) {
+          setAgentRun(run)
+          if (run.status !== 'running') {
+            stopPolling()
+            getNode(nodeId).then(setNode).catch(() => {})
+          }
+        }
+      } catch (_) { /* network hiccup — keep polling */ }
+    }, 2000)
+  }, [stopPolling])
+
+  // Clean up interval on unmount
+  useEffect(() => stopPolling, [stopPolling])
 
   const load = async () => {
     if (isNew) return
@@ -72,6 +99,7 @@ export default function NodePage() {
         ])
         setAgentRun(run)
         setAvailableAgents(agents)
+        if (run?.status === 'running') startPolling(n.id)
       }
     } finally {
       setLoading(false)
@@ -189,13 +217,9 @@ export default function NodePage() {
     setAgentLoading(true)
     setRouting(null)
     try {
-      // Optimistically show running state
       setAgentRun({ status: 'running', agent_name: agentName })
-      const result = await runAgent(id, agentName)
-      setAgentRun(result)
-      // Refresh node to pick up status change
-      const updated = await getNode(id)
-      setNode(updated)
+      await runAgent(id, agentName)  // returns {run_id, status:'running'} — 202
+      startPolling(id)
     } catch (e) {
       setAgentRun({ status: 'failed', agent_name: agentName, error_message: e.message })
     } finally {
@@ -494,7 +518,15 @@ export default function NodePage() {
                   run={agentRun}
                   taskId={id}
                   onDone={() => { load() }}
-                  onUpdated={(updated) => { setAgentRun(updated); getNode(id).then(setNode) }}
+                  onUpdated={(updated) => {
+                    setAgentRun(updated)
+                    if (updated?.status === 'running') {
+                      startPolling(id)
+                    } else {
+                      stopPolling()
+                      getNode(id).then(setNode).catch(() => {})
+                    }
+                  }}
                 />
               ) : (
                 !agentLoading && (

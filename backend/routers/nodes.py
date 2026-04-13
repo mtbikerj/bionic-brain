@@ -1,10 +1,13 @@
 import json
+import logging
 import time
 import uuid
 from fastapi import APIRouter, HTTPException
 from backend.db.connection import get_nodes_collection, get_db
 from backend.models.node import NodeCreate, NodeUpdate, NodeResponse
 from backend.blob.store import read_body, write_body, delete_body
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
 
@@ -19,11 +22,13 @@ def _now() -> int:
 def _meta_to_node(node_id: str, metadata: dict) -> NodeResponse:
     try:
         labels = json.loads(metadata.get("labels", "[]"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt labels JSON for node %s; raw=%r", node_id, metadata.get("labels"))
         labels = []
     try:
         props = json.loads(metadata.get("properties", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON for node %s; raw=%r", node_id, metadata.get("properties"))
         props = {}
     return NodeResponse(
         id=node_id,
@@ -54,7 +59,8 @@ def _build_meta(node_id: str, data: dict) -> tuple[str, str, dict]:
     if extra:
         try:
             existing = json.loads(props_str)
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt props_str in _build_meta for node %s; raw=%r", node_id, props_str)
             existing = {}
         existing.update(extra)
         props_str = json.dumps(existing)
@@ -154,8 +160,8 @@ def list_labels():
             for lbl in json.loads(meta.get("labels", "[]")):
                 if lbl:
                     counts[lbl] = counts.get(lbl, 0) + 1
-        except Exception:
-            pass
+        except json.JSONDecodeError:
+            logger.debug("Skipping malformed labels in a node; raw=%r", meta.get("labels"))
     return [{"label": l, "count": c} for l, c in sorted(counts.items(), key=lambda x: (-x[1], x[0]))]
 
 
@@ -190,7 +196,8 @@ def update_node(node_id: str, body: NodeUpdate):
     if body.properties:
         try:
             existing = json.loads(meta.get("properties", "{}"))
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt properties JSON for node %s during update", node_id)
             existing = {}
         existing.update(body.properties)
         meta["properties"] = json.dumps(existing)
@@ -213,8 +220,8 @@ def update_node(node_id: str, body: NodeUpdate):
                 else:
                     if int(meta.get("archived_at", 0)):
                         meta["archived_at"] = 0
-            except Exception:
-                pass
+            except json.JSONDecodeError:
+                logger.warning("Corrupt archive_when JSON for type %s", node_type)
 
     col.update(ids=[node_id], documents=[meta["label"]], metadatas=[meta])
     return _meta_to_node(node_id, meta)
@@ -324,7 +331,8 @@ def get_relationships(node_id: str):
     for row in all_type_rows:
         try:
             ets = json.loads(row["edge_types"] or "[]")
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt edge_types JSON for type %s", row["name"])
             ets = []
         for et in ets:
             # Map inverse labels for incoming edges

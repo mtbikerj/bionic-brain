@@ -1,12 +1,15 @@
 import json
+import logging
 import os
 import subprocess
 import time
 import uuid
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from backend.config import ANTHROPIC_API_KEY, AI_MODEL, AI_MAX_TOKENS_PER_REQUEST, CLAUDE_CODE_ENABLED
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -232,25 +235,28 @@ class RunAgentRequest(BaseModel):
     agent_name: str
 
 
-@router.post("/run-agent")
-def run_agent(body: RunAgentRequest):
+@router.post("/run-agent", status_code=202)
+def run_agent(body: RunAgentRequest, background_tasks: BackgroundTasks):
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
     try:
-        from backend.agents.runner import execute_agent
-        return execute_agent(body.task_id, body.agent_name)
+        from backend.agents.runner import start_agent, execute_agent_bg
+        run_id = start_agent(body.task_id, body.agent_name)
+        background_tasks.add_task(execute_agent_bg, body.task_id, body.agent_name, run_id)
+        return {"run_id": run_id, "status": "running"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Failed to start agent for task %s: %s", body.task_id, e)
+        raise HTTPException(status_code=500, detail="Failed to start agent.")
 
 
 class RespondRequest(BaseModel):
     reply: str
 
 
-@router.post("/run-agent/{run_id}/respond")
-def respond_to_agent(run_id: str, body: RespondRequest):
+@router.post("/run-agent/{run_id}/respond", status_code=202)
+def respond_to_agent(run_id: str, body: RespondRequest, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
@@ -263,21 +269,29 @@ def respond_to_agent(run_id: str, body: RespondRequest):
     meta = res["metadatas"][0]
     try:
         props = json.loads(meta.get("properties", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON for agent run %s", run_id)
         props = {}
 
     if props.get("status") != "needs_you":
         raise HTTPException(status_code=400, detail="Run is not in needs_you state")
 
+    task_id = props.get("task_id", "")
+    agent_name = props.get("agent_name", "")
     try:
-        from backend.agents.runner import execute_agent
-        return execute_agent(props.get("task_id", ""), props.get("agent_name", ""), user_reply=body.reply)
+        from backend.agents.runner import start_agent, execute_agent_bg
+        new_run_id = start_agent(task_id, agent_name)
+        background_tasks.add_task(execute_agent_bg, task_id, agent_name, new_run_id, body.reply)
+        return {"run_id": new_run_id, "status": "running"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Failed to start agent for task %s: %s", task_id, e)
+        raise HTTPException(status_code=500, detail="Failed to start agent.")
 
 
-@router.post("/run-agent/{run_id}/retry")
-def retry_agent(run_id: str):
+@router.post("/run-agent/{run_id}/retry", status_code=202)
+def retry_agent(run_id: str, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
@@ -289,14 +303,22 @@ def retry_agent(run_id: str):
 
     try:
         props = json.loads(res["metadatas"][0].get("properties", "{}"))
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("Corrupt properties JSON for agent run %s during retry", run_id)
         props = {}
 
+    task_id = props.get("task_id", "")
+    agent_name = props.get("agent_name", "")
     try:
-        from backend.agents.runner import execute_agent
-        return execute_agent(props.get("task_id", ""), props.get("agent_name", ""))
+        from backend.agents.runner import start_agent, execute_agent_bg
+        new_run_id = start_agent(task_id, agent_name)
+        background_tasks.add_task(execute_agent_bg, task_id, agent_name, new_run_id)
+        return {"run_id": new_run_id, "status": "running"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Failed to retry agent for task %s: %s", task_id, e)
+        raise HTTPException(status_code=500, detail="Failed to retry agent.")
 
 
 @router.get("/run-agent/latest")
@@ -336,7 +358,8 @@ def list_routing_rules():
     for nid, meta in pairs:
         try:
             props = json.loads(meta.get("properties", "{}"))
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning("Corrupt properties JSON for routing rule %s", nid)
             props = {}
         rules.append({
             "id": nid,

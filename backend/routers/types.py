@@ -1,8 +1,11 @@
 import json
+import logging
 import time
 import uuid
 from fastapi import APIRouter, HTTPException
 from backend.db.connection import get_db, get_nodes_collection
+
+logger = logging.getLogger(__name__)
 from backend.models.types import (
     TypeDefinitionCreate, TypeDefinitionUpdate, TypeDefinitionResponse,
     FieldDefinition, EdgeTypeDefinition, MigrateRequest,
@@ -35,11 +38,13 @@ def _record_schema_version(type_name: str, version: int, changes: str):
 def _row_to_type(row: dict, node_count: int = 0) -> TypeDefinitionResponse:
     try:
         fields = [FieldDefinition(**f) for f in json.loads(row.get("fields") or "[]")]
-    except Exception:
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
+        logger.warning("Corrupt fields JSON for type %s: %s", row.get("name"), e)
         fields = []
     try:
         edge_types = [EdgeTypeDefinition(**e) for e in json.loads(row.get("edge_types") or "[]")]
-    except Exception:
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
+        logger.warning("Corrupt edge_types JSON for type %s: %s", row.get("name"), e)
         edge_types = []
     return TypeDefinitionResponse(
         name=row["name"],
@@ -217,8 +222,8 @@ def migrate_type(name: str, body: MigrateRequest):
                     props = json.loads(new_meta.get("properties", "{}"))
                     props.update(body.defaults)
                     new_meta["properties"] = json.dumps(props)
-                except Exception:
-                    pass
+                except json.JSONDecodeError:
+                    logger.warning("Corrupt properties JSON on node %s during migration of type %s", nid, name)
             col.update(ids=[nid], metadatas=[new_meta])
             migrated += 1
 

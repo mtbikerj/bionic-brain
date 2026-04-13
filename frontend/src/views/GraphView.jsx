@@ -260,7 +260,14 @@ export default function GraphView({ drawerOpen }) {
       nodeG.attr('transform', (d) => `translate(${d.x},${d.y})`)
     })
 
-    return () => { sim.stop(); svg.on('.zoom', null) }
+    return () => {
+      sim.stop()
+      svg.on('.zoom', null)
+      nodeGRef.current = null
+      linkRef.current = null
+      nodeDataRef.current = []
+      zoomRef.current = null
+    }
   }, [graphNodes, graphLinks, typeColors])
 
   // ── Highlight effect: dim non-matching nodes (skipped when typeFilter active) ─

@@ -3,6 +3,7 @@ DB layer: ChromaDB (nodes, semantic search) + SQLite (edges, type definitions).
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -10,6 +11,8 @@ from contextlib import contextmanager
 import chromadb
 
 from backend.config import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 _CHROMA_DIR = os.path.join(DATA_DIR, "chroma")
 _SQLITE_PATH = os.path.join(DATA_DIR, "graph.db")
@@ -87,8 +90,18 @@ def init_db():
     with get_db() as conn:
         try:
             conn.execute("ALTER TABLE type_definitions ADD COLUMN archive_when TEXT")
-        except Exception:
+        except sqlite3.OperationalError:
             pass  # column already exists
+
+    # Migration: unique constraint on edges(from_id, to_id, type)
+    with get_db() as conn:
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique "
+                "ON edges(from_id, to_id, type)"
+            )
+        except sqlite3.OperationalError as e:
+            logger.warning("Could not create unique edge index (duplicate rows may exist): %s", e)
 
     # Ensure ChromaDB collection exists
     get_nodes_collection()

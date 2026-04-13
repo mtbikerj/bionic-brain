@@ -1,9 +1,21 @@
 import json
 import os
+import re
 from backend.config import BLOB_DIR
+
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE
+)
+_TEMPORAL_RE = re.compile(r'^(year-\d{4}|month-\d{4}-\d{1,2}|day-\d{4}-\d{2}-\d{2})$')
+
+
+def _validate_node_id(node_id: str) -> None:
+    if not (_UUID_RE.match(node_id) or _TEMPORAL_RE.match(node_id)):
+        raise ValueError(f"Invalid node_id format: {node_id!r}")
 
 
 def _blob_path(node_id: str) -> str:
+    _validate_node_id(node_id)
     prefix = node_id[:2]
     return os.path.join(BLOB_DIR, prefix, node_id, "body.json")
 

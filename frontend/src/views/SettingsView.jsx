@@ -19,7 +19,7 @@ export default function SettingsView() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
-  const [showKey, setShowKey] = useState(false)
+  const [replacingKey, setReplacingKey] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'system')
 
   useEffect(() => {
@@ -82,18 +82,20 @@ export default function SettingsView() {
 
               <div className="settings-row">
                 <label>Anthropic API Key</label>
-                <div style={{ display: 'flex', gap: 6 }}>
+                {env?.ANTHROPIC_API_KEY_SET && !replacingKey ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: 'var(--green)', fontSize: 13 }}>Configured ✓</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setReplacingKey(true)}>Replace</button>
+                  </div>
+                ) : (
                   <input
-                    type={showKey ? 'text' : 'password'}
-                    value={val('ANTHROPIC_API_KEY')}
+                    type="password"
+                    value={val('ANTHROPIC_API_KEY', '')}
                     onChange={(e) => set('ANTHROPIC_API_KEY', e.target.value)}
                     placeholder="sk-ant-…"
-                    style={{ flex: 1 }}
+                    autoFocus={replacingKey}
                   />
-                  <button className="btn btn-ghost btn-sm" onClick={() => setShowKey((s) => !s)}>
-                    {showKey ? 'Hide' : 'Show'}
-                  </button>
-                </div>
+                )}
                 <p className="settings-hint">Leave blank if using Claude Code (set CLAUDE_CODE_ENABLED below).</p>
               </div>
 
