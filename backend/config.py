@@ -3,7 +3,9 @@ import os
 
 load_dotenv()
 
+AI_PROVIDER = os.getenv("AI_PROVIDER", "anthropic")  # "anthropic" or "openai"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-opus-4-6")
 AI_MAX_TOKENS_PER_REQUEST = int(os.getenv("AI_MAX_TOKENS_PER_REQUEST", "4000"))
 AI_MONTHLY_WARNING_THRESHOLD_USD = float(os.getenv("AI_MONTHLY_WARNING_THRESHOLD_USD", "10.00"))

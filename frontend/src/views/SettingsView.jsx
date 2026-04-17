@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 import { getSettings, updateSettings } from '../api'
 
-const MODELS = [
+const ANTHROPIC_MODELS = [
   'claude-opus-4-6',
   'claude-sonnet-4-6',
   'claude-haiku-4-5-20251001',
+]
+
+const OPENAI_MODELS = [
+  'gpt-5-mini',
+  'gpt-4o-mini',
+  'gpt-5-nano',
+  'gtp-5.4-nano'
 ]
 
 const THEME_OPTIONS = [
@@ -20,6 +27,7 @@ export default function SettingsView() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
   const [replacingKey, setReplacingKey] = useState(false)
+  const [replacingOpenAiKey, setReplacingOpenAiKey] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'system')
 
   useEffect(() => {
@@ -81,58 +89,109 @@ export default function SettingsView() {
               <div className="settings-section-title">AI</div>
 
               <div className="settings-row">
-                <label>Anthropic API Key</label>
-                {env?.ANTHROPIC_API_KEY_SET && !replacingKey ? (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ color: 'var(--green)', fontSize: 13 }}>Configured ✓</span>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setReplacingKey(true)}>Replace</button>
+                <label>AI Provider</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['anthropic', 'openai'].map((p) => (
+                    <button
+                      key={p}
+                      className={`btn btn-sm ${val('AI_PROVIDER', 'anthropic') === p ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => {
+                        set('AI_PROVIDER', p)
+                        // Reset model to a sensible default for the new provider
+                        const defaultModel = p === 'openai' ? 'gpt-4o' : 'claude-opus-4-6'
+                        set('AI_MODEL', defaultModel)
+                      }}
+                    >
+                      {p === 'anthropic' ? 'Anthropic (Claude)' : 'OpenAI'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {val('AI_PROVIDER', 'anthropic') === 'anthropic' ? (
+                <>
+                  <div className="settings-row">
+                    <label>Anthropic API Key</label>
+                    {env?.ANTHROPIC_API_KEY_SET && !replacingKey ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ color: 'var(--green)', fontSize: 13 }}>Configured ✓</span>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setReplacingKey(true)}>Replace</button>
+                      </div>
+                    ) : (
+                      <input
+                        type="password"
+                        value={val('ANTHROPIC_API_KEY', '')}
+                        onChange={(e) => set('ANTHROPIC_API_KEY', e.target.value)}
+                        placeholder="sk-ant-…"
+                        autoFocus={replacingKey}
+                      />
+                    )}
+                    <p className="settings-hint">Leave blank if using Claude Code (set CLAUDE_CODE_ENABLED below).</p>
                   </div>
-                ) : (
-                  <input
-                    type="password"
-                    value={val('ANTHROPIC_API_KEY', '')}
-                    onChange={(e) => set('ANTHROPIC_API_KEY', e.target.value)}
-                    placeholder="sk-ant-…"
-                    autoFocus={replacingKey}
-                  />
-                )}
-                <p className="settings-hint">Leave blank if using Claude Code (set CLAUDE_CODE_ENABLED below).</p>
-              </div>
 
-              <div className="settings-row">
-                <label>AI Model</label>
-                <select value={val('AI_MODEL', 'claude-opus-4-6')} onChange={(e) => set('AI_MODEL', e.target.value)}>
-                  {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
+                  <div className="settings-row">
+                    <label>Claude Model</label>
+                    <select value={val('AI_MODEL', 'claude-opus-4-6')} onChange={(e) => set('AI_MODEL', e.target.value)}>
+                      {ANTHROPIC_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
 
-              <div className="settings-row">
-                <label>Use Claude Code</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="checkbox"
-                    id="cc-enabled"
-                    style={{ width: 'auto' }}
-                    checked={val('CLAUDE_CODE_ENABLED', 'false') === 'true'}
-                    onChange={(e) => set('CLAUDE_CODE_ENABLED', e.target.checked ? 'true' : 'false')}
-                  />
-                  <label htmlFor="cc-enabled" style={{ marginBottom: 0, fontWeight: 400 }}>
-                    Route AI calls through the Claude Code CLI
-                  </label>
-                </div>
-              </div>
+                  <div className="settings-row">
+                    <label>Use Claude Code</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <input
+                        type="checkbox"
+                        id="cc-enabled"
+                        style={{ width: 'auto' }}
+                        checked={val('CLAUDE_CODE_ENABLED', 'false') === 'true'}
+                        onChange={(e) => set('CLAUDE_CODE_ENABLED', e.target.checked ? 'true' : 'false')}
+                      />
+                      <label htmlFor="cc-enabled" style={{ marginBottom: 0, fontWeight: 400 }}>
+                        Route AI calls through the Claude Code CLI
+                      </label>
+                    </div>
+                  </div>
 
-              {val('CLAUDE_CODE_ENABLED', 'false') === 'true' && (
-                <div className="settings-row">
-                  <label>Claude Code Skills Path</label>
-                  <input
-                    type="text"
-                    value={val('CLAUDE_CODE_SKILLS_PATH')}
-                    onChange={(e) => set('CLAUDE_CODE_SKILLS_PATH', e.target.value)}
-                    placeholder="/path/to/skills"
-                  />
-                  <p className="settings-hint">Directory containing .md skill files (optional).</p>
-                </div>
+                  {val('CLAUDE_CODE_ENABLED', 'false') === 'true' && (
+                    <div className="settings-row">
+                      <label>Claude Code Skills Path</label>
+                      <input
+                        type="text"
+                        value={val('CLAUDE_CODE_SKILLS_PATH')}
+                        onChange={(e) => set('CLAUDE_CODE_SKILLS_PATH', e.target.value)}
+                        placeholder="/path/to/skills"
+                      />
+                      <p className="settings-hint">Directory containing .md skill files (optional).</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="settings-row">
+                    <label>OpenAI API Key</label>
+                    {env?.OPENAI_API_KEY_SET && !replacingOpenAiKey ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ color: 'var(--green)', fontSize: 13 }}>Configured ✓</span>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setReplacingOpenAiKey(true)}>Replace</button>
+                      </div>
+                    ) : (
+                      <input
+                        type="password"
+                        value={val('OPENAI_API_KEY', '')}
+                        onChange={(e) => set('OPENAI_API_KEY', e.target.value)}
+                        placeholder="sk-…"
+                        autoFocus={replacingOpenAiKey}
+                      />
+                    )}
+                  </div>
+
+                  <div className="settings-row">
+                    <label>OpenAI Model</label>
+                    <select value={val('AI_MODEL', 'gpt-4o')} onChange={(e) => set('AI_MODEL', e.target.value)}>
+                      {OPENAI_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                </>
               )}
             </section>
 

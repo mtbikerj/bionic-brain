@@ -7,7 +7,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 ENV_PATH = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 
 EDITABLE_KEYS = {
-    "ANTHROPIC_API_KEY", "AI_MODEL", "AI_MAX_TOKENS_PER_REQUEST",
+    "AI_PROVIDER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+    "AI_MODEL", "AI_MAX_TOKENS_PER_REQUEST",
     "AI_MONTHLY_WARNING_THRESHOLD_USD", "CLAUDE_CODE_ENABLED",
     "CLAUDE_CODE_SKILLS_PATH", "APP_PORT",
 }
@@ -65,9 +66,11 @@ def _write_env(data: dict[str, str]):
 @router.get("")
 def get_settings():
     env = _read_env()
-    # Never return the API key value over HTTP — only expose whether it's configured.
-    result = {k: v for k, v in env.items() if k != "ANTHROPIC_API_KEY"}
+    # Never return API key values over HTTP — only expose whether they're configured.
+    masked = {"ANTHROPIC_API_KEY", "OPENAI_API_KEY"}
+    result = {k: v for k, v in env.items() if k not in masked}
     result["ANTHROPIC_API_KEY_SET"] = bool(env.get("ANTHROPIC_API_KEY", "").strip())
+    result["OPENAI_API_KEY_SET"] = bool(env.get("OPENAI_API_KEY", "").strip())
     return result
 
 

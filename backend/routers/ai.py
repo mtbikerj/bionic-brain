@@ -1,13 +1,15 @@
 import json
 import logging
-import os
 import subprocess
 import time
 import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from backend.config import ANTHROPIC_API_KEY, AI_MODEL, AI_MAX_TOKENS_PER_REQUEST, CLAUDE_CODE_ENABLED
+from backend.config import (
+    ANTHROPIC_API_KEY, OPENAI_API_KEY, AI_PROVIDER,
+    AI_MODEL, AI_MAX_TOKENS_PER_REQUEST, CLAUDE_CODE_ENABLED,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,66 +143,42 @@ def _parse_suggest_response(text: str) -> SuggestTypeResponse:
     return SuggestTypeResponse(message=data.get("message", "Here's a suggestion."), suggestions=suggestions)
 
 
+def _ai_key_configured() -> bool:
+    if CLAUDE_CODE_ENABLED:
+        return True
+    if AI_PROVIDER == "openai":
+        return bool(OPENAI_API_KEY)
+    return bool(ANTHROPIC_API_KEY)
+
+
+def _ai_key_missing_detail() -> str:
+    if AI_PROVIDER == "openai":
+        return "OPENAI_API_KEY not configured. Add it to your .env file."
+    return "ANTHROPIC_API_KEY not configured. Add it to your .env file, or enable Claude Code (CLAUDE_CODE_ENABLED=true)."
+
+
 @router.post("/suggest-type", response_model=SuggestTypeResponse)
 def suggest_type(body: SuggestTypeRequest):
-    convo_text = "\n".join(
-        f"{'User' if m.role == 'user' else 'Assistant'}: {m.content}"
-        for m in body.conversation
-    )
-    full_prompt = f"{SUGGEST_TYPE_SYSTEM}\n\n{convo_text}"
+    if not _ai_key_configured():
+        raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
-    if CLAUDE_CODE_ENABLED:
-        try:
-            env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-            result = subprocess.run(
-                ["claude", "-p", full_prompt],
-                capture_output=True, text=True, timeout=60,
-                env=env,
-            )
-            if result.returncode != 0:
-                stderr = result.stderr.strip()
-                stdout = result.stdout.strip()
-                err = stderr or stdout or f"exit code {result.returncode}"
-                raise HTTPException(status_code=503, detail=f"Claude Code error: {err}")
-            text = result.stdout.strip()
-        except FileNotFoundError:
-            raise HTTPException(status_code=503, detail="claude CLI not found.")
-        except subprocess.TimeoutExpired:
-            raise HTTPException(status_code=503, detail="Claude Code timed out.")
-        try:
-            return _parse_suggest_response(text)
-        except (json.JSONDecodeError, KeyError):
-            return SuggestTypeResponse(message=text or "Sorry, I couldn't generate a suggestion.")
-
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="ANTHROPIC_API_KEY not configured. Add it to your .env file, or enable Claude Code (CLAUDE_CODE_ENABLED=true).",
-        )
-
+    from backend.agents.base import call_chat_ai
+    messages = [{"role": m.role, "content": m.content} for m in body.conversation]
     try:
-        import anthropic
-    except ImportError:
-        raise HTTPException(status_code=503, detail="anthropic package not installed.")
-
-    try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        messages = [{"role": m.role, "content": m.content} for m in body.conversation]
-        response = client.messages.create(
-            model=AI_MODEL,
-            max_tokens=AI_MAX_TOKENS_PER_REQUEST,
-            system=SUGGEST_TYPE_SYSTEM,
-            messages=messages,
-        )
-        text = response.content[0].text.strip()
-        try:
-            return _parse_suggest_response(text)
-        except (json.JSONDecodeError, KeyError):
-            return SuggestTypeResponse(message=text or "Sorry, I couldn't generate a suggestion.")
-    except anthropic.AuthenticationError:
-        raise HTTPException(status_code=503, detail="Anthropic API key is invalid.")
+        text, _ = call_chat_ai(SUGGEST_TYPE_SYSTEM, messages, max_tokens=AI_MAX_TOKENS_PER_REQUEST)
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="claude CLI not found.")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=503, detail="AI request timed out.")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        return _parse_suggest_response(text)
+    except (json.JSONDecodeError, KeyError):
+        return SuggestTypeResponse(message=text or "Sorry, I couldn't generate a suggestion.")
 
 
 # ── Agent catalog ─────────────────────────────────────────────────────────────
@@ -219,8 +197,8 @@ class RouteTaskRequest(BaseModel):
 
 @router.post("/route-task")
 def route_task(body: RouteTaskRequest):
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
+    if not _ai_key_configured():
+        raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
     try:
         from backend.agents.runner import analyze_routing
         return analyze_routing(body.task_id)
@@ -237,8 +215,8 @@ class RunAgentRequest(BaseModel):
 
 @router.post("/run-agent", status_code=202)
 def run_agent(body: RunAgentRequest, background_tasks: BackgroundTasks):
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
+    if not _ai_key_configured():
+        raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
     try:
         from backend.agents.runner import start_agent, execute_agent_bg
         run_id = start_agent(body.task_id, body.agent_name)
@@ -258,8 +236,8 @@ class RespondRequest(BaseModel):
 @router.post("/run-agent/{run_id}/respond", status_code=202)
 def respond_to_agent(run_id: str, body: RespondRequest, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
+    if not _ai_key_configured():
+        raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
     col = get_nodes_collection()
     res = col.get(ids=[run_id], include=["metadatas"])
@@ -293,8 +271,8 @@ def respond_to_agent(run_id: str, body: RespondRequest, background_tasks: Backgr
 @router.post("/run-agent/{run_id}/retry", status_code=202)
 def retry_agent(run_id: str, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
-    if not ANTHROPIC_API_KEY:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured.")
+    if not _ai_key_configured():
+        raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
     col = get_nodes_collection()
     res = col.get(ids=[run_id], include=["metadatas"])
