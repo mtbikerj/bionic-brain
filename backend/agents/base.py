@@ -54,7 +54,6 @@ def call_chat_ai(system: str, messages: list[dict], max_tokens: int = 800) -> tu
         msgs = ([{"role": "system", "content": system}] if system else []) + messages
         response = client.chat.completions.create(
             model=AI_MODEL,
-            max_tokens=max_tokens,
             messages=msgs,
         )
         text = response.choices[0].message.content.strip()
