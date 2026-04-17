@@ -1,6 +1,6 @@
 # Bionic Brain
 
-A local-first personal knowledge graph OS. Capture notes, tasks, people, URLs, and more as nodes; connect them with typed edges; explore the resulting graph. AI (Claude) routes tasks, suggests types, and runs agents — all running on your machine with no cloud dependencies beyond the Anthropic API or Claude Code.
+A local-first personal knowledge graph OS. Capture notes, tasks, people, URLs, and more as nodes; connect them with typed edges; explore the resulting graph. AI (Claude) routes tasks, suggests types, and runs agents (currently in development) — all running on your machine with no cloud dependencies beyond the Anthropic API or Claude Code.
 
 ![Screenshot](screenshot.png)
 
