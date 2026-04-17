@@ -9,6 +9,7 @@ from typing import Optional
 from backend.config import (
     ANTHROPIC_API_KEY, OPENAI_API_KEY, AI_PROVIDER,
     AI_MODEL, AI_MAX_TOKENS_PER_REQUEST, CLAUDE_CODE_ENABLED,
+    AI_ENABLED,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,8 +158,14 @@ def _ai_key_missing_detail() -> str:
     return "ANTHROPIC_API_KEY not configured. Add it to your .env file, or enable Claude Code (CLAUDE_CODE_ENABLED=true)."
 
 
+def _ai_enabled() -> bool:
+    return AI_ENABLED
+
+
 @router.post("/suggest-type", response_model=SuggestTypeResponse)
 def suggest_type(body: SuggestTypeRequest):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     if not _ai_key_configured():
         raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
@@ -185,6 +192,8 @@ def suggest_type(body: SuggestTypeRequest):
 
 @router.get("/agents")
 def list_agents(node_type: Optional[str] = None):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.agents.runner import get_catalog
     return get_catalog(node_type)
 
@@ -197,6 +206,8 @@ class RouteTaskRequest(BaseModel):
 
 @router.post("/route-task")
 def route_task(body: RouteTaskRequest):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     if not _ai_key_configured():
         raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
     try:
@@ -215,6 +226,8 @@ class RunAgentRequest(BaseModel):
 
 @router.post("/run-agent", status_code=202)
 def run_agent(body: RunAgentRequest, background_tasks: BackgroundTasks):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     if not _ai_key_configured():
         raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
     try:
@@ -236,6 +249,8 @@ class RespondRequest(BaseModel):
 @router.post("/run-agent/{run_id}/respond", status_code=202)
 def respond_to_agent(run_id: str, body: RespondRequest, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     if not _ai_key_configured():
         raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
@@ -271,6 +286,8 @@ def respond_to_agent(run_id: str, body: RespondRequest, background_tasks: Backgr
 @router.post("/run-agent/{run_id}/retry", status_code=202)
 def retry_agent(run_id: str, background_tasks: BackgroundTasks):
     from backend.db.connection import get_nodes_collection
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     if not _ai_key_configured():
         raise HTTPException(status_code=503, detail=_ai_key_missing_detail())
 
@@ -301,6 +318,8 @@ def retry_agent(run_id: str, background_tasks: BackgroundTasks):
 
 @router.get("/run-agent/latest")
 def get_latest_run(task_id: str):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.agents.runner import get_latest_run as _get_latest
     return _get_latest(task_id)
 
@@ -309,6 +328,8 @@ def get_latest_run(task_id: str):
 
 @router.get("/active-tasks")
 def active_tasks():
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.agents.runner import get_active_tasks
     return get_active_tasks()
 
@@ -324,6 +345,8 @@ class RoutingRuleCreate(BaseModel):
 
 @router.get("/routing-rules")
 def list_routing_rules():
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.db.connection import get_nodes_collection
     col = get_nodes_collection()
     result = col.get(where={"type": "ROUTING_RULE"}, include=["metadatas"])
@@ -354,6 +377,8 @@ def list_routing_rules():
 
 @router.post("/routing-rules", status_code=201)
 def create_routing_rule(body: RoutingRuleCreate):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.db.connection import get_nodes_collection
     now = int(time.time() * 1000)
     rule_id = str(uuid.uuid4())
@@ -381,6 +406,8 @@ def create_routing_rule(body: RoutingRuleCreate):
 
 @router.delete("/routing-rules/{rule_id}", status_code=204)
 def delete_routing_rule(rule_id: str):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     from backend.db.connection import get_nodes_collection
     col = get_nodes_collection()
     res = col.get(ids=[rule_id], include=["metadatas"])

@@ -11,6 +11,8 @@ import TypeRegistryView from './views/TypeRegistryView'
 import TypeCreateView from './views/TypeCreateView'
 import AgentsView from './views/AgentsView'
 import SettingsView from './views/SettingsView'
+import { getSettings } from './api'
+import { useAppStore } from './stores/appStore'
 import './App.css'
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ function GraphNodeRedirect() {
 function AppShell() {
   const navigate  = useNavigate()
   const location  = useLocation()
+  const setAiEnabled = useAppStore((s) => s.setAiEnabled)
 
   // Drawer is open for any route except root
   const drawerOpen = location.pathname !== '/'
@@ -82,6 +85,16 @@ function AppShell() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [navigate, drawerOpen])
+
+  // Fetch settings on startup
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        const enabled = (s?.AI_ENABLED ?? 'true') !== 'false'
+        setAiEnabled(enabled)
+      })
+      .catch(() => {})
+  }, [setAiEnabled])
 
   return (
     <div className="app-shell">

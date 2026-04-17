@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { suggestType, createType, getTypes } from '../api'
+import { useAppStore } from '../stores/appStore'
 import './TypeCreateView.css'
 
 const FIELD_TYPES = [
@@ -10,6 +11,10 @@ const FIELD_TYPES = [
 
 function typeLabel(name) {
   return name.charAt(0) + name.slice(1).toLowerCase().replace(/_/g, ' ')
+}
+
+function randomColor() {
+  return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
 }
 
 export default function TypeCreateView() {
@@ -26,6 +31,7 @@ export default function TypeCreateView() {
   const [error, setError] = useState(null)
   const bottomRef = useRef(null)
   const navigate = useNavigate()
+  const aiEnabled = useAppStore((s) => s.aiEnabled)
 
   useEffect(() => {
     getTypes().then(setAvailableTypes).catch(() => {})
@@ -117,6 +123,10 @@ export default function TypeCreateView() {
 
   const pendingCount = suggestions.filter(s => s.status === 'pending').length
   const allCreated = suggestions.length > 0 && suggestions.every(s => s.status === 'created')
+
+  if (!aiEnabled) {
+    return <ManualTypeForm availableTypes={availableTypes} />
+  }
 
   return (
     <div className="type-create-layout">
@@ -394,6 +404,172 @@ function SuggestionEdgeTypeRow({ edgeType, typeName, availableTypes, onChange, o
       <button className="btn btn-ghost btn-sm" onClick={onRemove} style={{ color: 'var(--danger, #ef4444)', marginLeft: 'auto' }}>
         ✕
       </button>
+    </div>
+  )
+}
+
+function ManualTypeForm({ availableTypes }) {
+  const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const [color, setColor] = useState(() => randomColor())
+  const [fields, setFields] = useState([])
+  const [edgeTypes, setEdgeTypes] = useState([])
+  const [extendsVal, setExtendsVal] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState(null)
+  const [created, setCreated] = useState(false)
+
+  const typeName = name.trim().toUpperCase().replace(/\s+/g, '_')
+
+  const handleCreate = async () => {
+    if (!typeName) return
+    setCreating(true)
+    setError(null)
+    try {
+      await createType({
+        name: typeName,
+        fields,
+        color,
+        icon: 'node',
+        extends: extendsVal || null,
+        edge_types: edgeTypes
+          .map((e) => ({
+            name: e.name.trim().toUpperCase().replace(/\s+/g, '_'),
+            inverse: e.inverse?.trim() || null,
+            target_type: e.target_type?.trim().toUpperCase() || null,
+            properties: [],
+          }))
+          .filter((e) => e.name),
+      })
+      setCreated(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (created) {
+    return (
+      <div className="type-create-layout">
+        <div className="type-create-chat">
+          <div className="type-create-header"><h2>New Type</h2></div>
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>Type <strong>{typeName}</strong> created.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/types')}>View types →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="type-create-layout">
+      <div className="type-create-chat">
+        <div className="type-create-header"><h2>New Type</h2></div>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+              Type name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              placeholder="e.g. Book, Project, Contact"
+              autoFocus
+            />
+            {name.trim() && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                Saved as: {typeName}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              style={{ width: 26, height: 26, padding: 0, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 }}
+              title="Color"
+            />
+            {availableTypes.filter((t) => !t.extends).length > 0 && (
+              <select
+                value={extendsVal}
+                onChange={(e) => setExtendsVal(e.target.value)}
+                style={{ fontSize: 12, flex: 1 }}
+              >
+                <option value="">Extends — none</option>
+                {availableTypes.filter((t) => !t.extends).map((t) => (
+                  <option key={t.name} value={t.name}>{typeLabel(t.name)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Fields</div>
+            <div className="suggestion-fields">
+              {fields.map((f, i) => (
+                <SuggestionFieldRow
+                  key={i}
+                  field={f}
+                  availableTypes={availableTypes}
+                  onChange={(k, v) => setFields((prev) => prev.map((x, idx) => idx === i ? { ...x, [k]: v } : x))}
+                  onRemove={() => setFields((prev) => prev.filter((_, idx) => idx !== i))}
+                />
+              ))}
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ marginTop: 2 }}
+                onClick={() => setFields((prev) => [...prev, { name: '', type: 'short_text', required: false }])}
+              >
+                + Add field
+              </button>
+            </div>
+          </div>
+
+          <div className="sugg-connections">
+            <div className="sugg-connections-header">
+              <span>Connections</span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setEdgeTypes((prev) => [...prev, { name: '', inverse: '', target_type: '' }])}
+              >
+                + Add
+              </button>
+            </div>
+            {edgeTypes.map((et, i) => (
+              <SuggestionEdgeTypeRow
+                key={i}
+                edgeType={et}
+                typeName={typeLabel(typeName || 'TYPE')}
+                availableTypes={availableTypes}
+                onChange={(k, v) => setEdgeTypes((prev) => prev.map((x, idx) => idx === i ? { ...x, [k]: v } : x))}
+                onRemove={() => setEdgeTypes((prev) => prev.filter((_, idx) => idx !== i))}
+              />
+            ))}
+            {edgeTypes.length === 0 && (
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No connections defined.</div>
+            )}
+          </div>
+
+          {error && <div className="form-error">{error}</div>}
+
+          <button
+            className="btn btn-primary"
+            onClick={handleCreate}
+            disabled={creating || !name.trim()}
+          >
+            {creating ? <span className="spinner" /> : 'Create type'}
+          </button>
+
+        </div>
+      </div>
     </div>
   )
 }

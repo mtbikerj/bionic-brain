@@ -13,6 +13,8 @@ AI_MONTHLY_WARNING_THRESHOLD_USD = float(os.getenv("AI_MONTHLY_WARNING_THRESHOLD
 CLAUDE_CODE_ENABLED = os.getenv("CLAUDE_CODE_ENABLED", "false").lower() == "true"
 CLAUDE_CODE_SKILLS_PATH = os.getenv("CLAUDE_CODE_SKILLS_PATH", "")
 
+AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
+
 APP_PORT = int(os.getenv("APP_PORT", "8000"))
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 BLOB_DIR = os.getenv("BLOB_DIR", "./data/blobs")

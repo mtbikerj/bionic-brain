@@ -43,6 +43,7 @@ export default function NodePage() {
   const pollRef = useRef(null)
 
   const { setActiveNodeId } = useAppStore()
+  const aiEnabled = useAppStore((s) => s.aiEnabled)
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -91,8 +92,8 @@ export default function NodePage() {
       setRels(r)
       const td = await getType(n.type).catch(() => null)
       setTypeDef(td)
-      if (['TASK', 'NOTE', 'INBOX_ITEM'].includes(n.type) ||
-          ['in_progress_agent','needs_you','needs_review','agent_complete','failed'].includes(n.status)) {
+      if (aiEnabled && (['TASK', 'NOTE', 'INBOX_ITEM'].includes(n.type) ||
+          ['in_progress_agent','needs_you','needs_review','agent_complete','failed'].includes(n.status))) {
         const [run, agents] = await Promise.all([
           getLatestRun(n.id).catch(() => null),
           getAgents(n.type).catch(() => []),
@@ -106,7 +107,7 @@ export default function NodePage() {
     }
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load() }, [id, aiEnabled])
 
   // Fetch nodes for relationship fields so pickers and display work
   const relationshipTargetTypes = useMemo(() => {
@@ -441,7 +442,7 @@ export default function NodePage() {
       </section>
 
       {/* Agent section — shown for actionable node types */}
-      {availableAgents.length > 0 && (
+      {aiEnabled && availableAgents.length > 0 && (
         <section className="node-section">
           <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Agent</span>

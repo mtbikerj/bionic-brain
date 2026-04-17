@@ -1,6 +1,6 @@
 # Bionic Brain
 
-A local-first personal knowledge graph OS. Capture notes, tasks, people, URLs, and more as nodes; connect them with typed edges; explore the resulting graph. AI (Claude) routes tasks, suggests types, and runs agents (currently in development) — all running on your machine with no cloud dependencies beyond the Anthropic API or Claude Code.
+A local-first personal knowledge graph OS. Capture notes, tasks, people, URLs, and more as nodes; connect them with typed edges; explore the resulting graph. AI features (type suggestions, task routing, agents) are optional — the app works fully without them. All data stays on your machine.
 
 ![Screenshot](screenshot.png)
 
@@ -24,9 +24,10 @@ cd bionic-brain
 # 2. Create a virtual environment (recommended)
 python -m venv venv
 
-# 3. Add your Anthropic API key
+# 3. Configure (AI is optional)
 cp .env.example .env
-# Open .env and set ANTHROPIC_API_KEY=sk-ant-...
+# To use AI features, open .env and set ANTHROPIC_API_KEY=sk-ant-...
+# Leave it blank to run without AI — set AI_ENABLED=false to hide AI features entirely
 
 # 4. Start everything
 ./start.sh        # macOS / Linux
@@ -76,17 +77,18 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | *(required for AI)* | Your Anthropic API key |
+| `AI_ENABLED` | `true` | Set to `false` to disable all AI features and hide AI UI |
+| `ANTHROPIC_API_KEY` | *(optional)* | Your Anthropic API key |
 | `AI_MODEL` | `claude-opus-4-6` | Claude model to use |
 | `AI_MAX_TOKENS_PER_REQUEST` | `4000` | Max tokens per AI call |
 | `AI_MONTHLY_WARNING_THRESHOLD_USD` | `10.00` | Spend warning threshold |
+| `CLAUDE_CODE_ENABLED` | `true` | Enable Tier 2 Claude Code skill agents |
 | `APP_PORT` | `8000` | Backend port |
 | `FRONTEND_PORT` | `3000` | Frontend dev server port |
 | `DATA_DIR` | `./data` | Root directory for all local data |
 | `BLOB_DIR` | `./data/blobs` | Rich-text body storage |
 | `FILES_DIR` | `./data/files` | Uploaded file storage |
 | `CHROMA_DIR` | `./data/chroma` | ChromaDB path (optional override) |
-| `CLAUDE_CODE_ENABLED` | `true` | Enable Tier 2 Claude Code skill agents |
 
 ## Architecture
 
@@ -102,7 +104,7 @@ data/blobs/                         — TipTap JSON rich-text bodies
 
 - **Backend** (`backend/`) — FastAPI app with routers for nodes, edges, types, search, graph, AI, agents, and settings.
 - **Frontend** (`frontend/src/`) — React + Vite SPA. Full-screen interactive graph as the primary view; floating command bar (`Ctrl/Cmd+K`) is the main capture and navigation entry point.
-- **AI agents** run in three tiers: built-in Python agents, Claude Code skills (if `CLAUDE_CODE_ENABLED=true`), and user-defined agents.
+- **AI agents** are optional. Set `AI_ENABLED=false` in `.env` (and restart) to hide all AI features — the toggle is also available in Settings. When AI is enabled, agents run in three tiers: built-in Python agents, Claude Code skills (if `CLAUDE_CODE_ENABLED=true`), and user-defined agents. Type creation uses an AI chat interface when enabled, or a manual form when disabled.
 
 ### Keyboard Shortcuts
 

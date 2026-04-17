@@ -90,13 +90,17 @@ User-defined types extend built-in types via `EXTENDS` edges (single-level inher
 
 ### AI Integration
 - Anthropic SDK configured in `config.py` (model defaulting to `claude-opus-4-6`)
+- `AI_ENABLED` flag (boolean, default `true`) gates all AI features; stored in `.env`, readable via `backend/config.py`; all `/ai/*` and `/agents` endpoints return 403 when disabled
 - Agent tiers: built-in Python agents → Claude Code skills (optional, `CLAUDE_CODE_ENABLED`) → user-defined agents
+- Frontend reads `AI_ENABLED` from `getSettings()` at startup into `appStore.aiEnabled`; all AI-dependent UI is conditionally rendered from that store value
+- Type creation (`/types/new`) uses an AI chat interface when `aiEnabled=true`, or a manual form (`ManualTypeForm` in `TypeCreateView.jsx`) when disabled
 - MCP compatibility is a first-class design goal — do not break it
 
 ## Configuration
 
 Copy `.env.example` → `.env` before first run. Key settings:
-- `ANTHROPIC_API_KEY` — required for AI features
+- `AI_ENABLED` — set to `false` to disable all AI features; also togglable in Settings UI (requires server restart to take effect)
+- `ANTHROPIC_API_KEY` — required for AI features when `AI_ENABLED=true`
 - `AI_MODEL` — Claude model to use (default: `claude-opus-4-6`)
 - `DATA_DIR` — root for all local data
 - `BLOB_DIR` — blob storage path (default: `DATA_DIR/blobs`)

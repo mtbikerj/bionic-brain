@@ -35,4 +35,8 @@ export const useAppStore = create((set) => ({
   // Which node is currently selected (shown in drawer / focused in graph)
   activeNodeId: null,
   setActiveNodeId: (id) => set({ activeNodeId: id }),
+
+  // AI features enabled/disabled (set from settings at startup)
+  aiEnabled: true,
+  setAiEnabled: (v) => set({ aiEnabled: v }),
 }))

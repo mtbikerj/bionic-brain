@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.db.connection import get_nodes_collection
+from backend.config import AI_ENABLED
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -54,8 +55,14 @@ def _now() -> int:
     return int(time.time() * 1000)
 
 
+def _ai_enabled() -> bool:
+    return AI_ENABLED
+
+
 @router.get("")
 def list_custom_agents():
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     col = get_nodes_collection()
     result = col.get(where={"type": "CUSTOM_AGENT"}, include=["metadatas"])
     pairs = sorted(zip(result["ids"], result["metadatas"]), key=lambda x: x[1].get("created_at", 0))
@@ -64,6 +71,8 @@ def list_custom_agents():
 
 @router.post("", status_code=201)
 def create_custom_agent(body: CustomAgentCreate):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     name = body.name.lower().replace(" ", "_")
     now = _now()
     agent_id = str(uuid.uuid4())
@@ -106,6 +115,8 @@ def create_custom_agent(body: CustomAgentCreate):
 
 @router.patch("/{name}")
 def update_custom_agent(name: str, body: CustomAgentUpdate):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     now = _now()
     col = get_nodes_collection()
 
@@ -157,6 +168,8 @@ def update_custom_agent(name: str, body: CustomAgentUpdate):
 
 @router.delete("/{name}", status_code=204)
 def delete_custom_agent(name: str):
+    if not _ai_enabled():
+        raise HTTPException(status_code=403, detail="AI is disabled")
     col = get_nodes_collection()
     result = col.get(where={"type": "CUSTOM_AGENT"}, include=["metadatas"])
     agent_id = None

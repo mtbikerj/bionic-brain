@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getActiveTasks, getRoutingRules, deleteRoutingRule, getCustomAgents, deleteCustomAgent } from '../api'
 import AgentCreatePanel from '../components/agents/AgentCreatePanel'
+import { useAppStore } from '../stores/appStore'
 import './View.css'
 import './AgentsView.css'
 
@@ -26,6 +27,7 @@ const RUNNING_STATUSES = ['in_progress_agent']
 
 export default function AgentsView() {
   const navigate = useNavigate()
+  const aiEnabled = useAppStore((s) => s.aiEnabled)
   const [tasks, setTasks] = useState([])
   const [rules, setRules] = useState([])
   const [customAgents, setCustomAgents] = useState([])
@@ -85,6 +87,17 @@ export default function AgentsView() {
   }
 
   if (loading) return <div className="view-loading"><div className="spinner" /></div>
+
+  if (!aiEnabled) {
+    return (
+      <div className="view">
+        <div className="view-header"><h1 className="view-title">Agents</h1></div>
+        <div className="view-content" style={{ color: 'var(--text-muted)', padding: '24px 0' }}>
+          AI features are disabled. Enable them in Settings to use agents.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="view">

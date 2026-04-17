@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { getSettings } from '../../api'
+import { useAppStore } from '../../stores/appStore'
 import './IconRail.css'
 
 const THEME_CYCLE = { system: 'dark', dark: 'light', light: 'system' }
@@ -18,10 +19,11 @@ export default function IconRail() {
   const navigate  = useNavigate()
   const [theme, setTheme] = useState(() => localStorage.getItem('bb_theme') || 'system')
   const [aiReady, setAiReady] = useState(false)
+  const aiEnabled = useAppStore((s) => s.aiEnabled)
 
   useEffect(() => {
     getSettings()
-      .then((s) => setAiReady(!!(s?.ANTHROPIC_API_KEY || s?.CLAUDE_CODE_ENABLED === 'true')))
+      .then((s) => setAiReady(!!(s?.ANTHROPIC_API_KEY_SET || s?.OPENAI_API_KEY_SET || s?.CLAUDE_CODE_ENABLED === 'true')))
       .catch(() => {})
   }, [])
 
@@ -43,7 +45,7 @@ export default function IconRail() {
 
       {/* Primary nav */}
       <div className="rail-nav">
-        {NAV.map(({ to, icon, label, exact }) => (
+        {NAV.filter(({ to }) => to !== '/agents' || aiEnabled).map(({ to, icon, label, exact }) => (
           <NavLink
             key={to}
             to={to}
@@ -59,7 +61,7 @@ export default function IconRail() {
 
       {/* Bottom actions */}
       <div className="rail-footer">
-        {!aiReady && (
+        {!aiReady && aiEnabled && (
           <NavLink to="/settings" className="rail-item rail-warn" title="AI not configured">
             <span className="rail-icon">⚠</span>
             <span className="rail-label">Setup AI</span>
