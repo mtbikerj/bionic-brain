@@ -65,8 +65,8 @@ SQLite   (embedded, data/graph.db)  — edges + type definitions
 - `App.jsx` — React Router routes; full-screen graph as persistent backdrop with floating command bar and right-side drawer for detail views
 - `views/` — Page components: `GraphView`, `NodePage`, `InboxView`, `TodayView`, `TypeRegistryView`, `TypeCreateView`, `TypeListView`, `AgentsView`, `SettingsView`
 - `components/` — Reusable UI; `CommandBar` is the primary capture/navigation entry point
-- `stores/` — Zustand stores; central `nodeStore` holds node cache and CRUD methods
-- `api/` — Thin fetch wrappers for each backend endpoint
+- `stores/` — Zustand stores; `nodeStore` holds node cache and CRUD methods; `appStore` holds global graph data, search highlights, and type colors (keeps CommandBar and GraphView in sync)
+- `api/` — `index.js`: fetch wrappers for all backend endpoints
 
 **Routes:** `/` (graph), `/nodes/:id` (node detail), `/inbox`, `/today`, `/types`, `/types/new`, `/types/:name`, `/agents`, `/settings`
 
